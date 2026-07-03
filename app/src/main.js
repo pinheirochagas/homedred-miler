@@ -70,6 +70,8 @@ try {
     bearing: -14,
     antialias: true,
     attributionControl: false,
+    // in the stacked touch layout one-finger swipes scroll the page; two fingers pan the map
+    cooperativeGestures: matchMedia('(pointer: coarse) and (max-width: 940px)').matches,
   })
   map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right')
   map.on('error', e => {
@@ -270,12 +272,18 @@ function setGhost(mi) {
   })
 }
 
+// masthead sits over the map top-left; on the stacked mobile layout it spans the top
+const fitPad = () =>
+  matchMedia('(max-width: 940px)').matches
+    ? { top: 205, bottom: 30, left: 24, right: 24 }
+    : { top: 60, bottom: 70, left: 240, right: 70 }
+
 let popup = null
 if (map) {
   map.on('style.load', () => { addCourseLayers(); addWaypointLayers() })
   map.once('load', () => {
     map.fitBounds(bbox, {
-      padding: { top: 60, bottom: 70, left: 240, right: 70 },
+      padding: fitPad(),
       pitch: 52, bearing: -14, duration: 2600, essential: true,
     })
   })
@@ -333,7 +341,7 @@ $('#ctl-orbit').addEventListener('click', () => (orbiting ? stopOrbit() : startO
 $('#ctl-fit').addEventListener('click', () => {
   if (!map) return
   stopOrbit()
-  map.fitBounds(bbox, { padding: { top: 60, bottom: 70, left: 240, right: 70 }, pitch: 45, duration: 1600 })
+  map.fitBounds(bbox, { padding: fitPad(), pitch: 45, duration: 1600 })
 })
 
 let orbitRaf = null
