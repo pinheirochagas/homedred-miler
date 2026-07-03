@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Homedred Miler</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300;400;500&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='none' stroke='%23000' stroke-width='2'/></svg>" />
+</head>
+<body>
+  <main id="plate">
+    <div id="map"></div>
+
+    <header id="masthead">
+      <h1>Homedred<br />Miler</h1>
+      <p class="route">Home
+        <svg class="loop" viewBox="0 0 24 24" aria-label="out and back">
+          <path d="M23 4v6h-6M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
+            fill="none" stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Headlands</p>
+      <p class="sub">Pedro Pinheiro-Chagas &amp; friends</p>
+      <p class="tot" id="totals"></p>
+    </header>
+
+    <nav id="mapctl">
+      <button id="ctl-style">satellite</button>
+      <button id="ctl-3d" class="on">relief</button>
+      <button id="ctl-orbit">orbit</button>
+      <button id="ctl-fit">frame</button>
+    </nav>
+  </main>
+
+  <aside id="rail">
+    <section id="plan">
+      <div class="plan-head">
+        <span class="lbl">Crew plan</span>
+        <span id="plan-finish"></span>
+      </div>
+      <div class="plan-grid">
+        <label>
+          <span class="lbl">Start</span>
+          <input type="datetime-local" id="plan-start" />
+        </label>
+        <label>
+          <span class="lbl">Target <b id="plan-hours-out"></b></span>
+          <input type="range" id="plan-hours" min="20" max="44" step="0.5" />
+        </label>
+      </div>
+      <div id="plan-alerts"></div>
+    </section>
+
+    <div id="filters">
+      <button data-f="all" class="on">all</button>
+      <button data-f="crew">crew</button>
+      <button data-f="water">water</button>
+      <button data-f="gated">gated</button>
+    </div>
+
+    <ol id="wplist"></ol>
+
+    <footer id="legend">
+      <span>● crew access</span>
+      <span>○ on foot only</span>
+      <span>◦ water</span>
+    </footer>
+  </aside>
+
+  <section id="profile">
+    <div id="pstats">
+      <div id="pstats-main"></div>
+      <div id="pstats-hint">drag to measure — esc clears</div>
+    </div>
+    <div id="pchart"></div>
+  </section>
+
+  <div id="err" hidden></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
