@@ -1,0 +1,8 @@
+{
+  "name": "homedred-miler",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd app && npm ci --include=dev && npx vite build"
+  }
+}
