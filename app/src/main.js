@@ -12,23 +12,18 @@ const TOKEN = import.meta.env.MAPBOX_TOKEN
 const $ = s => document.querySelector(s)
 
 // ---------------------------------------------------------------- state
-const saved = JSON.parse(localStorage.getItem('hm-plan') || 'null')
+// race day: Sat Aug 8 2026, 08:00 · 24 h target
+// (v2 key so plans saved under the old defaults don't shadow the real ones)
+const saved = JSON.parse(localStorage.getItem('hm-plan-v2') || 'null')
 const plan = {
-  start: saved?.start ? new Date(saved.start) : nextSat5am(),
-  hours: saved?.hours || 32,
+  start: saved?.start ? new Date(saved.start) : new Date(2026, 7, 8, 8, 0),
+  hours: saved?.hours || 24,
 }
 let sel = null            // {a, b} miles
 let hoverMi = null
 let filter = 'all'
 let orbiting = false
 let satellite = false
-
-function nextSat5am() {
-  const d = new Date()
-  d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7))
-  d.setHours(5, 0, 0, 0)
-  return d
-}
 
 // Grade-adjusted, even-effort pace model: 1,000 ft of climb ≈ 2 flat miles.
 const effortAt = mi => {
@@ -380,7 +375,7 @@ $('#plan-hours').addEventListener('input', e => {
 })
 
 function refreshPlan() {
-  localStorage.setItem('hm-plan', JSON.stringify({ start: plan.start.toISOString(), hours: plan.hours }))
+  localStorage.setItem('hm-plan-v2', JSON.stringify({ start: plan.start.toISOString(), hours: plan.hours }))
   $('#plan-hours-out').textContent = `${plan.hours} h`
   const fin = etaAt(course.totalMi)
   $('#plan-finish').textContent =
