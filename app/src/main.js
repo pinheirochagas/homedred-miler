@@ -50,7 +50,9 @@ const C = {
   moss: '#4d6b4a',
   wash: 'rgba(124, 155, 120, 0.2)',
 }
-const STYLE_LIGHT = 'mapbox://styles/mapbox/light-v11'
+// outdoors carries the topo detail (trail names, contours, peaks, parks);
+// the canvas grayscale filter in style.css keeps it monochrome
+const STYLE_LIGHT = 'mapbox://styles/mapbox/outdoors-v12'
 const STYLE_SAT = 'mapbox://styles/mapbox/satellite-streets-v12'
 
 let map = null
@@ -89,10 +91,12 @@ const bbox = (() => {
 })()
 
 function addCourseLayers() {
-  // quiet the basemap: keep major settlements and water names, drop the rest
+  // quiet the basemap, but keep everything a trail map needs:
+  // places, trail/road names, peaks, water, parks, contour elevations.
+  // dropped: transit, airports, house numbers, road shields.
   for (const lyr of map.getStyle().layers) {
     if (lyr.type !== 'symbol') continue
-    if (/^(settlement-major-label|water-point-label|water-line-label|natural-point-label|natural-line-label)/.test(lyr.id)) continue
+    if (/^(settlement-|water-|waterway-|natural-|poi-label|road-label|path-pedestrian-label|contour-label)/.test(lyr.id)) continue
     map.setLayoutProperty(lyr.id, 'visibility', 'none')
   }
 
