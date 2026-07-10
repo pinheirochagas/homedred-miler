@@ -37,12 +37,6 @@ body {
 /* ---------- map plate ---------- */
 #plate { grid-column: 1; grid-row: 1; position: relative; overflow: hidden; }
 #map { position: absolute; inset: 0; background: var(--white); }
-#map .mapboxgl-canvas {
-  filter: grayscale(1) brightness(1.06) contrast(0.88);
-}
-body.satellite #map .mapboxgl-canvas {
-  filter: grayscale(1) brightness(1.02) contrast(1.02);
-}
 .mapboxgl-ctrl-logo, .mapboxgl-ctrl-attrib { opacity: 0.3; }
 
 ::selection { background: var(--black); color: var(--white); }

@@ -41,19 +41,73 @@ function fatal(msg) {
   el.textContent = msg
 }
 
-// strict monochrome (mirrors style.css) — plus one botanical green,
+// strict monochrome (mirrors style.css) — plus one highlighter yellow,
 // reserved exclusively for the measured segment
 const C = {
   paper: '#ffffff',
   ink: '#000000',
   gray: '#8a8a8a',
-  moss: '#4d6b4a',
-  wash: 'rgba(124, 155, 120, 0.2)',
+  highlight: '#f1f17c',
+  // Calibrated darker for the narrow WebGL stroke so it reads like the
+  // broader profile wash against a gray basemap.
+  routeHighlight: '#d7d85b',
+  wash: '#f1f17c',
 }
 // outdoors carries the topo detail (trail names, contours, peaks, parks);
 // the canvas grayscale filter in style.css keeps it monochrome
 const STYLE_LIGHT = 'mapbox://styles/mapbox/outdoors-v12'
 const STYLE_SAT = 'mapbox://styles/mapbox/satellite-streets-v12'
+
+// Desaturate only Mapbox's own style layers. A CSS filter on the whole canvas
+// would also strip the yellow from our selected route.
+const colorParser = document.createElement('canvas').getContext('2d')
+function grayscaleColor(value) {
+  if (typeof value !== 'string') return value
+  const sentinel = '#010203'
+  colorParser.fillStyle = sentinel
+  colorParser.fillStyle = value
+  const parsed = colorParser.fillStyle
+  if (parsed === sentinel && value.toLowerCase() !== sentinel) return value
+
+  let r, g, b, a = 1
+  const hex = parsed.match(/^#([0-9a-f]{6})$/i)
+  const rgb = parsed.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/i)
+  if (hex) {
+    r = parseInt(hex[1].slice(0, 2), 16)
+    g = parseInt(hex[1].slice(2, 4), 16)
+    b = parseInt(hex[1].slice(4, 6), 16)
+  } else if (rgb) {
+    r = +rgb[1]; g = +rgb[2]; b = +rgb[3]; a = rgb[4] == null ? 1 : +rgb[4]
+  } else {
+    return value
+  }
+  const y = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b)
+  return a < 1 ? `rgba(${y}, ${y}, ${y}, ${a})` : `rgb(${y}, ${y}, ${y})`
+}
+
+function grayscaleStyleValue(value) {
+  if (typeof value === 'string') return grayscaleColor(value)
+  if (!Array.isArray(value)) return value
+  if ((value[0] === 'rgb' || value[0] === 'rgba') &&
+      value.slice(1, 4).every(Number.isFinite)) {
+    const y = Math.round(0.2126 * value[1] + 0.7152 * value[2] + 0.0722 * value[3])
+    return [value[0], y, y, y, ...value.slice(4)]
+  }
+  return value.map((part, i) => i === 0 ? part : grayscaleStyleValue(part))
+}
+
+function desaturateBasemap() {
+  for (const layer of map.getStyle().layers) {
+    if (layer.type === 'raster') {
+      map.setPaintProperty(layer.id, 'raster-saturation', -1)
+    }
+    for (const [property, value] of Object.entries(layer.paint || {})) {
+      if (property.endsWith('-color')) {
+        map.setPaintProperty(layer.id, property, grayscaleStyleValue(value))
+      }
+    }
+  }
+}
 
 let map = null
 try {
@@ -91,6 +145,8 @@ const bbox = (() => {
 })()
 
 function addCourseLayers() {
+  desaturateBasemap()
+
   // quiet the basemap, but keep everything a trail map needs:
   // places, trail/road names, peaks, water, parks, contour elevations.
   // dropped: transit, airports, house numbers, road shields.
@@ -143,15 +199,15 @@ function addCourseLayers() {
     paint: {
       'line-color': C.ink,
       'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.6, 14, 3.4],
-      'line-opacity': sel ? 0.22 : 1,
+      'line-opacity': 1,
     },
   })
-  // measured segment turns green; the rest of the course fades
+  // measured segment is overlaid in the same yellow as the profile wash
   map.addLayer({
     id: 'course-sel-line', type: 'line', source: 'course-sel',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': C.moss,
+      'line-color': C.routeHighlight,
       'line-width': ['interpolate', ['linear'], ['zoom'], 9, 2.4, 14, 5],
     },
   })
@@ -510,20 +566,17 @@ function renderProfile() {
       width="${sel ? Math.max(1, Math.abs(x(sel.b) - x(sel.a))) : 0}" height="${H}"/></clipPath>`
   svg.appendChild(defs)
 
-  // the profile is a single line drawing; it fades while a segment is measured
-  svg.appendChild(path(dLine, 'none', sel ? 'rgba(0,0,0,0.18)' : C.ink, 1.4))
-
+  // Selection adds only a yellow wash; it does not alter the black drawing.
   if (sel) {
     const selWash = path(dArea, C.wash, 'none', 0)
     selWash.setAttribute('clip-path', 'url(#selclip)')
     svg.appendChild(selWash)
-    const selLine = path(dLine, 'none', C.moss, 1.8)
-    selLine.setAttribute('clip-path', 'url(#selclip)')
-    svg.appendChild(selLine)
     for (const m of [Math.min(sel.a, sel.b), Math.max(sel.a, sel.b)]) {
-      svg.appendChild(line(x(m), padT, x(m), H - padB, C.moss, 1))
+      svg.appendChild(line(x(m), padT, x(m), H - padB, C.highlight, 1))
     }
   }
+  // Draw the contour after the wash so it remains solid black and fully opaque.
+  svg.appendChild(path(dLine, 'none', C.ink, 1.4))
 
   // waypoint ticks (crew stops only, keeps it clean)
   for (const w of waypoints) {
@@ -532,7 +585,7 @@ function renderProfile() {
     const c = document.createElementNS(NS, 'circle')
     c.setAttribute('cx', px); c.setAttribute('cy', py); c.setAttribute('r', 2.3)
     c.setAttribute('fill', '#ffffff')
-    c.setAttribute('stroke', sel ? 'rgba(0,0,0,0.25)' : C.ink)
+    c.setAttribute('stroke', C.ink)
     c.setAttribute('stroke-width', 1.1)
     svg.appendChild(c)
   }
@@ -682,9 +735,6 @@ function syncSelToMap() {
   src.setData(sel
     ? sliceLine(Math.min(sel.a, sel.b), Math.max(sel.a, sel.b))
     : { type: 'FeatureCollection', features: [] })
-  // fade the rest of the drawing while a segment is measured
-  if (map.getLayer('course-line'))
-    map.setPaintProperty('course-line', 'line-opacity', sel ? 0.22 : 1)
 }
 
 function renderStats() {
