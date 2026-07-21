@@ -49,7 +49,7 @@ export const dayhm = d =>
 /**
  * Resolve a window spec into concrete open/close Dates for the day of `at`.
  * Specs: "24h" | "HH:MM-HH:MM" | "HH:MM-sunset" | "HH:MM-sunset+60"
- *        | "sunrise-sunset" | "bridge" (GGB east sidewalk)
+ *        | "sunrise-sunset" | "watershed-parking" | "bridge" (GGB east sidewalk)
  */
 export function resolveWindow(spec, at) {
   if (!spec || spec === '24h') return null
@@ -65,6 +65,13 @@ export function resolveWindow(spec, at) {
   if (spec === 'bridge') {
     const close = isDST(at) ? '21:00' : '18:30'
     const w = { open: part('5:00'), close: part(close) }
+    return { ...w, label: `${hhmm(w.open)}–${hhmm(w.close)}` }
+  }
+  if (spec === 'watershed-parking') {
+    const w = {
+      open: new Date(sun.sunrise.getTime() - 30 * 60000),
+      close: new Date(sun.sunset.getTime() + 30 * 60000),
+    }
     return { ...w, label: `${hhmm(w.open)}–${hhmm(w.close)}` }
   }
   const [o, c] = spec.split('-')

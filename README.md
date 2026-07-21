@@ -1,7 +1,7 @@
 # Homedred Miler — Course Console
 
-Minimal planning dashboard for the 100.2 mi / +15,205 ft SF → Marin loop
-(`course.gpx`, Strava route). 3D satellite map, elevation profile with
+Minimal planning dashboard for the SF → Marin loop
+(`course_v4.gpx`, Strava route). 3D satellite map, elevation profile with
 segment measuring, and a crew plan that projects ETAs onto every access
 point and flags gate/parking-hour conflicts.
 

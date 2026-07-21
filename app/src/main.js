@@ -3,27 +3,37 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import './style.css'
 import {
   course, ptAt, statsBetween, gradeAt, fullLine, sliceLine,
-  idxAt, dist, ele, cgain, fmtFt, fmtMi,
+  idxAt, lat, lon, dist, ele, cgain, fmtFt, fmtMi,
 } from './data.js'
 import { waypoints } from './waypoints.js'
+import { facilities } from './facilities.js'
 import { resolveWindow, windowStatus, sunTimes, hhmm } from './sun.js'
+import waterFacilityIcon from './assets/facilities/facility-water.png'
+import bathroomFacilityIcon from './assets/facilities/facility-bathroom.png'
+import parkingFacilityIcon from './assets/facilities/facility-parking.png'
+import locationRunnerIcon from './assets/location-runner.png'
 
 const TOKEN = import.meta.env.MAPBOX_TOKEN
 const $ = s => document.querySelector(s)
 
 // ---------------------------------------------------------------- state
-// race day: Sat Aug 8 2026, 08:00 · 24 h target
-// (v2 key so plans saved under the old defaults don't shadow the real ones)
-const saved = JSON.parse(localStorage.getItem('hm-plan-v2') || 'null')
+// race day: Sat Aug 8 2026, 12:00 · 24 h target
+// Version the key so plans saved under older defaults do not override noon.
+const saved = JSON.parse(localStorage.getItem('hm-plan-v3') || 'null')
 const plan = {
-  start: saved?.start ? new Date(saved.start) : new Date(2026, 7, 8, 8, 0),
+  start: saved?.start ? new Date(saved.start) : new Date(2026, 7, 8, 12, 0),
   hours: saved?.hours || 24,
 }
 let sel = null            // {a, b} miles
 let hoverMi = null
 let filter = 'all'
+let renderedFilter = null
+const selectedSegmentKeys = new Set()
 let orbiting = false
 let satellite = false
+let locating = false
+let userLocation = null
+const visibleFacilityTypes = new Set(['water'])
 
 // Grade-adjusted, even-effort pace model: 1,000 ft of climb ≈ 2 flat miles.
 const effortAt = mi => {
@@ -34,6 +44,139 @@ const TOTAL_EFFORT = effortAt(course.totalMi)
 const etaAt = mi =>
   new Date(plan.start.getTime() + plan.hours * 3600000 * (effortAt(mi) / TOTAL_EFFORT))
 
+const crewPoints = waypoints.filter(w => w.crew)
+const crewSegments = crewPoints.slice(0, -1).map((from, i) => {
+  const to = crewPoints[i + 1]
+  return { key: `${from.id}:${to.id}`, index: i + 1, from, to }
+})
+
+const FACILITY_TYPES = {
+  water: { icon: waterFacilityIcon },
+  bathrooms: { icon: bathroomFacilityIcon },
+  parking: { icon: parkingFacilityIcon },
+}
+const facilityById = new Map(facilities.map(f => [f.id, f]))
+const waypointById = new Map(waypoints.map(w => [w.id, w]))
+const facilityIconKey = type => `facility-${type}`
+
+let facilityIconImagesPromise = null
+function loadFacilityIconImages() {
+  if (facilityIconImagesPromise) return facilityIconImagesPromise
+  facilityIconImagesPromise = Promise.all(
+    Object.entries(FACILITY_TYPES).map(([type, meta]) => new Promise((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve([type, image])
+      image.onerror = () => reject(new Error(`Could not load ${type} facility icon`))
+      image.src = meta.icon
+    })),
+  ).then(Object.fromEntries)
+  return facilityIconImagesPromise
+}
+
+let locationRunnerImagePromise = null
+function loadLocationRunnerImage() {
+  if (locationRunnerImagePromise) return locationRunnerImagePromise
+  locationRunnerImagePromise = new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Could not load location runner icon'))
+    image.src = locationRunnerIcon
+  })
+  return locationRunnerImagePromise
+}
+
+const geoDistance = (aLat, aLon, bLat, bLon) => {
+  const rad = n => n * Math.PI / 180
+  const dLat = rad(bLat - aLat)
+  const dLon = rad(bLon - aLon)
+  const q = Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLon / 2) ** 2
+  return 6371000 * 2 * Math.asin(Math.sqrt(q))
+}
+
+function expectedCourseMile(timeMs) {
+  const start = plan.start.getTime()
+  const finish = start + plan.hours * 3600000
+  if (timeMs < start || timeMs > finish) return null
+  let lo = 0
+  let hi = course.totalMi
+  for (let i = 0; i < 28; i++) {
+    const mid = (lo + hi) / 2
+    if (etaAt(mid).getTime() < timeMs) lo = mid
+    else hi = mid
+  }
+  return (lo + hi) / 2
+}
+
+function nearestCourseLocation(position) {
+  const { latitude, longitude, accuracy } = position.coords
+  const distances = new Float64Array(course.n)
+  let best = 0
+  let bestDistance = Infinity
+  for (let i = 0; i < course.n; i++) {
+    const meters = geoDistance(latitude, longitude, lat(i), lon(i))
+    distances[i] = meters
+    if (meters < bestDistance) {
+      best = i
+      bestDistance = meters
+    }
+  }
+
+  // On overlapping out-and-back portions, race time disambiguates which pass
+  // should be marked on the elevation profile.
+  const expectedMi = expectedCourseMile(position.timestamp || Date.now())
+  if (expectedMi != null) {
+    const tolerance = Math.max(8, Math.min(30, Number.isFinite(accuracy) ? accuracy : 8))
+    let progressError = Math.abs(dist(best) - expectedMi)
+    for (let i = 0; i < course.n; i++) {
+      if (distances[i] > bestDistance + tolerance) continue
+      const candidateError = Math.abs(dist(i) - expectedMi)
+      if (candidateError < progressError) {
+        best = i
+        progressError = candidateError
+      }
+    }
+    bestDistance = distances[best]
+  }
+
+  return {
+    lat: latitude,
+    lon: longitude,
+    accuracy: Number.isFinite(accuracy) ? accuracy : null,
+    routeIndex: best,
+    mi: dist(best),
+    offsetM: bestDistance,
+    timestamp: position.timestamp || Date.now(),
+  }
+}
+
+function nearestRouteVisit(facility, visitRef) {
+  const waypoint = typeof visitRef === 'string' ? waypointById.get(visitRef) : visitRef
+  const searchRadius = typeof visitRef === 'string' ? 1.25 : 0.4
+  const from = idxAt(Math.max(0, waypoint.mi - searchRadius))
+  const to = idxAt(Math.min(course.totalMi, waypoint.mi + searchRadius))
+  let best = from
+  let bestDistance = Infinity
+  for (let i = from; i <= to; i++) {
+    const d = geoDistance(facility.lat, facility.lon, lat(i), lon(i))
+    if (d < bestDistance) {
+      best = i
+      bestDistance = d
+    }
+  }
+  return {
+    id: `${facility.id}:${waypoint.id}`,
+    facility,
+    waypoint,
+    mi: dist(best),
+    offsetM: bestDistance,
+  }
+}
+
+const facilityVisits = facilities
+  .flatMap(facility => facility.visits.map(visit => nearestRouteVisit(facility, visit)))
+  .sort((a, b) => a.mi - b.mi)
+
 // ---------------------------------------------------------------- map
 function fatal(msg) {
   const el = $('#err')
@@ -41,12 +184,12 @@ function fatal(msg) {
   el.textContent = msg
 }
 
-// strict monochrome (mirrors style.css) — plus one highlighter yellow,
-// reserved exclusively for the measured segment
+// Map drawing colors stay muted so route, facility, and GPS overlays remain legible.
 const C = {
   paper: '#ffffff',
   ink: '#000000',
   gray: '#8a8a8a',
+  location: '#4f8297',
   highlight: '#f1f17c',
   // Calibrated darker for the narrow WebGL stroke so it reads like the
   // broader profile wash against a gray basemap.
@@ -125,6 +268,7 @@ try {
     cooperativeGestures: matchMedia('(pointer: coarse) and (max-width: 940px)').matches,
   })
   map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right')
+  map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: 'imperial' }), 'bottom-right')
   map.on('error', e => {
     const st = e?.error?.status
     if (st === 401 || st === 403) {
@@ -231,7 +375,7 @@ function addCourseLayers() {
       'text-halo-color': C.paper, 'text-halo-width': 1.3,
     },
   })
-  if (sel) map.getSource('course-sel').setData(sliceLine(sel.a, sel.b))
+  syncSelToMap()
 }
 
 function mileMarkerGeojson() {
@@ -266,18 +410,82 @@ const wpGeojson = {
 }
 const EMPTY = { type: 'FeatureCollection', features: [] }
 
+function userLocationGeojson() {
+  if (!userLocation) return EMPTY
+  return {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Point', coordinates: [userLocation.lon, userLocation.lat] },
+    }],
+  }
+}
+
+function locationRunnerMapImage(image) {
+  const size = 48
+  const iconBox = 40
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  const scale = Math.min(iconBox / image.width, iconBox / image.height)
+  const width = image.width * scale
+  const height = image.height * scale
+  ctx.drawImage(image, (size - width) / 2, (size - height) / 2, width, height)
+  return ctx.getImageData(0, 0, size, size)
+}
+
+async function addUserLocationLayers() {
+  const runnerImage = await loadLocationRunnerImage()
+  if (map.getSource('user-location')) return
+  if (!map.hasImage('user-location-runner')) {
+    map.addImage('user-location-runner', locationRunnerMapImage(runnerImage), { pixelRatio: 2 })
+  }
+  map.addSource('user-location', { type: 'geojson', data: userLocationGeojson() })
+  map.addLayer({
+    id: 'user-location-frame',
+    type: 'circle',
+    source: 'user-location',
+    paint: {
+      'circle-radius': 13,
+      'circle-color': C.paper,
+      'circle-stroke-width': 1.3,
+      'circle-stroke-color': C.ink,
+      'circle-emissive-strength': 1,
+    },
+  })
+  map.addLayer({
+    id: 'user-location-runner',
+    type: 'symbol',
+    source: 'user-location',
+    layout: {
+      'icon-image': 'user-location-runner',
+      'icon-size': 1,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    paint: { 'icon-emissive-strength': 1 },
+  })
+}
+
+function updateUserLocationSource() {
+  map?.getSource('user-location')?.setData(userLocationGeojson())
+}
+
 function addWaypointLayers() {
   map.addSource('wps', { type: 'geojson', data: wpGeojson })
   map.addSource('ghost', { type: 'geojson', data: EMPTY })
 
-  // crew stops solid black, foot-only hollow — nothing else
+  // Crew stops use the same yellow as a selected route; foot-only stays hollow.
   map.addLayer({
     id: 'wp-dots', type: 'circle', source: 'wps',
     paint: {
       'circle-radius': ['case', ['==', ['get', 'major'], 1], 4.6, 3],
-      'circle-color': ['case', ['==', ['get', 'crew'], 0], C.paper, C.ink],
+      'circle-color': ['case', ['==', ['get', 'crew'], 0], C.paper, C.routeHighlight],
       'circle-stroke-width': 1.1,
-      'circle-stroke-color': ['case', ['==', ['get', 'crew'], 0], C.ink, C.paper],
+      'circle-stroke-color': C.ink,
+      'circle-emissive-strength': 1,
     },
   })
   map.addLayer({
@@ -316,6 +524,133 @@ function addWaypointLayers() {
   map.on('mouseleave', 'wp-dots', () => (map.getCanvas().style.cursor = ''))
 }
 
+function facilityGeojson() {
+  return {
+    type: 'FeatureCollection',
+    features: facilities
+      .filter(facility => visibleFacilityTypes.has(facility.type))
+      .map(facility => ({
+        type: 'Feature',
+        properties: {
+          id: facility.id,
+          icon: facilityIconKey(facility.type),
+          type: facility.type,
+        },
+        geometry: { type: 'Point', coordinates: [facility.lon, facility.lat] },
+      })),
+  }
+}
+
+function facilityBadge(type, image) {
+  const height = 52
+  const width = 52
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+
+  ctx.beginPath()
+  ctx.arc(width / 2, height / 2, 23, 0, Math.PI * 2)
+  ctx.fillStyle = type === 'water' ? '#6d9fb3' : type === 'bathrooms' ? '#78b98a' : '#000000'
+  ctx.fill()
+
+  const iconBox = 36
+  const scale = Math.min(iconBox / image.width, iconBox / image.height)
+  const iconWidth = image.width * scale
+  const iconHeight = image.height * scale
+  const iconCanvas = document.createElement('canvas')
+  iconCanvas.width = width
+  iconCanvas.height = height
+  const iconCtx = iconCanvas.getContext('2d')
+  iconCtx.drawImage(
+    image,
+    (width - iconWidth) / 2,
+    (height - iconHeight) / 2,
+    iconWidth,
+    iconHeight,
+  )
+  iconCtx.globalCompositeOperation = 'source-in'
+  iconCtx.fillStyle = '#ffffff'
+  iconCtx.fillRect(0, 0, width, height)
+  ctx.drawImage(iconCanvas, 0, 0)
+
+  ctx.beginPath()
+  ctx.arc(width / 2, height / 2, 23, 0, Math.PI * 2)
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 2
+  ctx.stroke()
+  return ctx.getImageData(0, 0, width, height)
+}
+
+async function addFacilityLayers() {
+  const images = await loadFacilityIconImages()
+  for (const type of Object.keys(FACILITY_TYPES)) {
+    const key = facilityIconKey(type)
+    if (!map.hasImage(key)) map.addImage(key, facilityBadge(type, images[type]), { pixelRatio: 2 })
+  }
+
+  map.addSource('facilities', { type: 'geojson', data: facilityGeojson() })
+  map.addLayer({
+    id: 'facility-icons',
+    type: 'symbol',
+    source: 'facilities',
+    layout: {
+      'icon-image': ['get', 'icon'],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.72, 11, 0.88, 13, 1],
+      'icon-anchor': 'center',
+      'icon-offset': [0, 0],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    paint: { 'icon-emissive-strength': 1 },
+  })
+
+  map.on('click', 'facility-icons', e => {
+    const id = e.features?.[0]?.properties?.id
+    if (id) focusFacility(id)
+  })
+  map.on('mouseenter', 'facility-icons', () => (map.getCanvas().style.cursor = 'pointer'))
+  map.on('mouseleave', 'facility-icons', () => (map.getCanvas().style.cursor = ''))
+}
+
+function updateFacilitySource() {
+  map?.getSource('facilities')?.setData(facilityGeojson())
+}
+
+function focusFacility(id, visitId = null, fly = false) {
+  const facility = facilityById.get(id)
+  if (!facility || !map) return
+  const visits = facilityVisits.filter(visit => visit.facility.id === id)
+  const selected = visits.find(visit => visit.id === visitId) || visits[0]
+  const meta = FACILITY_TYPES[facility.type]
+
+  document.querySelectorAll('.facility-stop').forEach(li =>
+    li.classList.toggle('sel', li.dataset.visitId === selected?.id))
+  $(`.facility-stop[data-visit-id="${selected?.id}"]`)
+    ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+
+  const visitRows = visits.map(visit => {
+    const eta = etaAt(visit.mi)
+    return `<div class="pop-row"><b>mi ${fmtMi(visit.mi)}</b> · ${Math.round(visit.offsetM)} m away · ETA ${hhmm(eta)} ${weekday(eta)}</div>`
+  }).join('')
+  popup.setLngLat([facility.lon, facility.lat]).setHTML(`
+    <div class="pop-nm facility-title"><img class="facility-inline-icon" src="${meta.icon}" alt="" aria-hidden="true">${facility.name}</div>
+    ${visitRows}
+  `).addTo(map)
+
+  if (fly) {
+    stopOrbit()
+    map.flyTo({
+      center: [facility.lon, facility.lat],
+      zoom: 18,
+      pitch: 0,
+      bearing: 0,
+      duration: 1200,
+      essential: true,
+    })
+  }
+}
+
 function setGhost(mi) {
   const src = map?.getSource('ghost')
   if (!src) return
@@ -335,7 +670,20 @@ const fitPad = () =>
 
 let popup = null
 if (map) {
-  map.on('style.load', () => { addCourseLayers(); addWaypointLayers() })
+  map.on('style.load', async () => {
+    addCourseLayers()
+    addWaypointLayers()
+    try {
+      await addFacilityLayers()
+    } catch (error) {
+      console.error(error)
+    }
+    try {
+      await addUserLocationLayers()
+    } catch (error) {
+      console.error(error)
+    }
+  })
   map.once('load', () => {
     map.fitBounds(bbox, {
       padding: fitPad(),
@@ -357,12 +705,12 @@ function focusWaypoint(id, fromMap = false) {
   const eta = etaAt(w.mi)
   const gate = w.gate ? resolveWindow(w.gate.spec, eta) : null
   const st = w.gate ? windowStatus(w.gate.spec, eta).st : 'ok'
+  const access = w.access || (w.crew ? 'open 24 h' : 'foot only')
   popup.setLngLat([p.lon, p.lat]).setHTML(`
     <div class="pop-nm">${w.name}</div>
     <div class="pop-mi">mile ${fmtMi(w.mi)} · ${fmtFt(p.ele)} ft</div>
     <div class="pop-row">ETA <b>${hhmm(eta)}</b> ${eta.toLocaleDateString('en-US', { weekday: 'short' })}
-      ${w.gate ? ` · ${w.gate.what} <b>${gate.label}</b>${st === 'closed' ? ' — <b>closed at your ETA</b>' : st === 'tight' ? ' — tight' : ''}` : ' · open 24 h'}</div>
-    ${w.water ? `<div class="pop-row">water: <b>${w.water}</b></div>` : ''}
+      ${w.gate ? ` · ${w.gate.what} <b>${gate.label}</b>${st === 'closed' ? ' — <b>closed at your ETA</b>' : st === 'tight' ? ' — tight' : ''}` : ` · ${access}`}</div>
     <div class="pop-row">${w.note}</div>
     ${w.gate?.alt ? `<div class="pop-row">alt: ${w.gate.alt}</div>` : ''}
   `).addTo(map)
@@ -371,6 +719,69 @@ function focusWaypoint(id, fromMap = false) {
     stopOrbit()
     map.flyTo({ center: [p.lon, p.lat], zoom: 13.6, pitch: 65, duration: 1900, essential: true })
   }
+}
+
+let locationResetTimer = null
+function showLocationError(error) {
+  locating = false
+  const button = $('#ctl-location')
+  button.removeAttribute('aria-busy')
+  const message = error?.code === 1
+    ? 'location blocked'
+    : error?.code === 3
+      ? 'GPS timeout'
+      : 'GPS unavailable'
+  button.textContent = message
+  button.title = error?.message || message
+  clearTimeout(locationResetTimer)
+  locationResetTimer = setTimeout(() => {
+    button.textContent = 'my location'
+    button.title = ''
+  }, 4000)
+}
+
+function captureUserLocation() {
+  if (locating) return
+  if (!navigator.geolocation) {
+    showLocationError({ message: 'This device or browser does not provide location.' })
+    return
+  }
+
+  locating = true
+  const button = $('#ctl-location')
+  clearTimeout(locationResetTimer)
+  button.textContent = 'locating…'
+  button.setAttribute('aria-busy', 'true')
+
+  navigator.geolocation.getCurrentPosition(position => {
+    locating = false
+    userLocation = nearestCourseLocation(position)
+    button.textContent = 'my location'
+    button.removeAttribute('aria-busy')
+    button.classList.add('on')
+    button.title = [
+      userLocation.accuracy == null ? 'GPS location' : `GPS ±${Math.round(userLocation.accuracy)} m`,
+      `profile mile ${fmtMi(userLocation.mi)}`,
+      `${Math.round(userLocation.offsetM)} m from course`,
+    ].join(' · ')
+    updateUserLocationSource()
+    renderProfile()
+
+    if (map) {
+      popup?.remove()
+      stopOrbit()
+      map.flyTo({
+        center: [userLocation.lon, userLocation.lat],
+        zoom: Math.max(map.getZoom(), 15),
+        duration: 1200,
+        essential: true,
+      })
+    }
+  }, showLocationError, {
+    enableHighAccuracy: true,
+    timeout: 15000,
+    maximumAge: 5000,
+  })
 }
 
 // ---------------------------------------------------------------- controls
@@ -393,6 +804,22 @@ $('#ctl-3d').addEventListener('click', () => {
   }
 })
 $('#ctl-orbit').addEventListener('click', () => (orbiting ? stopOrbit() : startOrbit()))
+$('#ctl-location').addEventListener('click', captureUserLocation)
+for (const [type, id] of [
+  ['water', '#ctl-water'],
+  ['bathrooms', '#ctl-bathrooms'],
+  ['parking', '#ctl-parking'],
+]) {
+  const button = $(id)
+  button.addEventListener('click', () => {
+    if (visibleFacilityTypes.has(type)) visibleFacilityTypes.delete(type)
+    else visibleFacilityTypes.add(type)
+    const on = visibleFacilityTypes.has(type)
+    button.classList.toggle('on', on)
+    button.setAttribute('aria-pressed', String(on))
+    updateFacilitySource()
+  })
+}
 $('#ctl-fit').addEventListener('click', () => {
   if (!map) return
   stopOrbit()
@@ -435,32 +862,13 @@ $('#plan-hours').addEventListener('input', e => {
 })
 
 function refreshPlan() {
-  localStorage.setItem('hm-plan-v2', JSON.stringify({ start: plan.start.toISOString(), hours: plan.hours }))
+  localStorage.setItem('hm-plan-v3', JSON.stringify({ start: plan.start.toISOString(), hours: plan.hours }))
   $('#plan-hours-out').textContent = `${plan.hours} h`
   const fin = etaAt(course.totalMi)
   $('#plan-finish').textContent =
     `finish ${fin.toLocaleDateString('en-US', { weekday: 'short' })} ${hhmm(fin)}`
-  renderAlerts()
   renderList()
   renderProfile()
-}
-
-function renderAlerts() {
-  const box = $('#plan-alerts')
-  box.innerHTML = ''
-  for (const w of waypoints) {
-    if (!w.gate) continue
-    const eta = etaAt(w.mi)
-    const { st, w: win } = windowStatus(w.gate.spec, eta)
-    if (st === 'ok') continue
-    const div = document.createElement('div')
-    div.className = 'alert' + (st === 'tight' ? ' warn' : '')
-    const what = w.bridge ? 'sidewalk' : w.gate.what
-    div.innerHTML = st === 'closed'
-      ? `<b>${w.name}</b> — ${what} closed at ETA ${hhmm(eta)} (${win.label}).${w.gate.alt ? ` ${w.gate.alt}.` : ''}`
-      : `<b>${w.name}</b> — ${what} closes ${hhmm(win.close)}, ETA ${hhmm(eta)}. Tight.`
-    box.appendChild(div)
-  }
 }
 
 // ---------------------------------------------------------------- waypoint list
@@ -473,14 +881,29 @@ document.querySelectorAll('#filters button').forEach(b =>
 
 function visible(w) {
   if (filter === 'crew') return w.crew
-  if (filter === 'water') return !!w.water
   if (filter === 'gated') return !!w.gate
+  if (filter === 'all') return w.crew
   return true
 }
 
 function renderList() {
   const ol = $('#wplist')
+  const summary = $('#segment-summary')
+  const scrollTop = renderedFilter === filter ? ol.scrollTop : 0
+  renderedFilter = filter
   ol.innerHTML = ''
+  if (filter === 'segments') {
+    renderSegmentSummary(summary)
+    renderSegments(ol)
+    ol.scrollTop = scrollTop
+    return
+  }
+  summary.hidden = true
+  if (FACILITY_TYPES[filter]) {
+    renderFacilityList(ol, filter)
+    ol.scrollTop = scrollTop
+    return
+  }
   const shown = waypoints.filter(visible)
   shown.forEach((w, i) => {
     if (i > 0) {
@@ -496,22 +919,149 @@ function renderList() {
     const li = document.createElement('li')
     li.className = 'wp' +
       (w.crew ? '' : ' foot') +
-      (w.gate ? ' gate gated' : '') +
-      (w.water ? ' has-water' : '')
+      (w.gate ? ' gate gated' : '')
     li.dataset.id = w.id
     const gateTxt = w.gate
       ? `<span class="g${st === 'closed' ? ' bad' : ''}">${w.bridge ? 'ped gates' : w.gate.what} ${resolveWindow(w.gate.spec, eta).label}${st === 'closed' ? ' — closed at ETA' : st === 'tight' ? ' — tight' : ''}</span>`
-      : (w.crew ? '24 h access' : '<span class="f">foot only</span>')
+      : (w.access || (w.crew ? '24 h access' : '<span class="f">foot only</span>'))
     li.innerHTML = `
       <span class="mi">${fmtMi(w.mi)}<em>${fmtFt(ptAt(w.mi).ele)} ft</em></span>
       <span>
         <span class="nm">${w.name}</span>
-        <div class="meta">${w.water ? `<span class="w">◦ water${w.water !== 'yes' ? ` (${w.water})` : ''}</span> · ` : ''}${gateTxt}</div>
+        <div class="meta">${gateTxt}</div>
       </span>
       <span class="eta"><span class="${st !== 'ok' ? (st === 'closed' ? 'closed' : 'tight') : ''}">${hhmm(eta)}</span><em>${eta.toLocaleDateString('en-US', { weekday: 'short' })}</em></span>`
     li.addEventListener('click', () => focusWaypoint(w.id))
     ol.appendChild(li)
   })
+  ol.scrollTop = scrollTop
+}
+
+function renderFacilityList(ol, type) {
+  const visits = facilityVisits.filter(visit => visit.facility.type === type)
+  visits.forEach((visit, i) => {
+    if (i > 0) {
+      const previous = visits[i - 1]
+      const s = statsBetween(previous.mi, visit.mi)
+      const leg = document.createElement('li')
+      leg.className = 'leg'
+      leg.textContent = `${s.mi.toFixed(1)} mi · +${fmtFt(s.gain)} ft · −${fmtFt(s.loss)} ft`
+      ol.appendChild(leg)
+    }
+    const eta = etaAt(visit.mi)
+    const li = document.createElement('li')
+    li.className = 'wp facility-stop'
+    li.dataset.id = visit.facility.id
+    li.dataset.visitId = visit.id
+    li.innerHTML = `
+      <span class="mi">${fmtMi(visit.mi)}<em>${Math.round(visit.offsetM)} m away</em></span>
+      <span>
+        <span class="nm">${visit.facility.name}</span>
+      </span>
+      <span class="eta">${hhmm(eta)}<em>${weekday(eta)}</em></span>`
+    li.addEventListener('click', () => focusFacility(visit.facility.id, visit.id, true))
+    ol.appendChild(li)
+  })
+}
+
+const weekday = d => d.toLocaleDateString('en-US', { weekday: 'short' })
+const fmtDuration = ms => {
+  const minutes = Math.round(ms / 60000)
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`
+}
+
+const selectedCrewSegments = () =>
+  crewSegments.filter(segment => selectedSegmentKeys.has(segment.key))
+
+function segmentTotals(segments = selectedCrewSegments()) {
+  return segments.reduce((total, { from, to }) => {
+    const s = statsBetween(from.mi, to.mi)
+    total.mi += s.mi
+    total.gain += s.gain
+    total.loss += s.loss
+    total.duration += etaAt(to.mi) - etaAt(from.mi)
+    return total
+  }, { mi: 0, gain: 0, loss: 0, duration: 0 })
+}
+
+function selectionRanges() {
+  const segments = selectedCrewSegments()
+  if (segments.length) return segments.map(({ from, to }) => ({ a: from.mi, b: to.mi }))
+  if (!sel) return []
+  return [{ a: Math.min(sel.a, sel.b), b: Math.max(sel.a, sel.b) }]
+}
+
+function renderSegmentSummary(summary) {
+  summary.hidden = false
+  const segments = selectedCrewSegments()
+  if (!segments.length) {
+    summary.className = 'empty'
+    summary.textContent = 'Select one or more segments to combine.'
+    return
+  }
+
+  const total = segmentTotals(segments)
+  summary.className = ''
+  summary.innerHTML = `
+    <span>
+      <b>Combined · ${segments.length} segment${segments.length === 1 ? '' : 's'}</b>
+      <small>${total.mi.toFixed(1)} mi · +${fmtFt(total.gain)} ft · −${fmtFt(total.loss)} ft · ${fmtDuration(total.duration)}</small>
+    </span>
+    <button type="button">clear</button>`
+  summary.querySelector('button').addEventListener('click', clearSegmentSelection)
+}
+
+function renderSegments(ol) {
+  for (const segment of crewSegments) {
+    const { from, to } = segment
+    const s = statsBetween(from.mi, to.mi)
+    const depart = etaAt(from.mi)
+    const arrive = etaAt(to.mi)
+    const selected = selectedSegmentKeys.has(segment.key)
+    const li = document.createElement('li')
+    li.className = 'segment' + (selected ? ' sel' : '')
+
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false')
+    button.setAttribute('aria-label',
+      `${from.name} to ${to.name}: ${s.mi.toFixed(1)} miles, ${fmtFt(s.gain)} feet gain`)
+    button.innerHTML = `
+      <span class="seg-no">${String(segment.index).padStart(2, '0')}</span>
+      <span class="seg-body">
+        <span class="seg-route">
+          <span>${from.name}</span><i aria-hidden="true">→</i><span>${to.name}</span>
+        </span>
+        <span class="seg-stats">${s.mi.toFixed(1)} mi · +${fmtFt(s.gain)} ft · −${fmtFt(s.loss)} ft</span>
+        <span class="seg-eta">
+          ETA ${hhmm(depart)} ${weekday(depart)} → ${hhmm(arrive)} ${weekday(arrive)}
+          <i>· ${fmtDuration(arrive - depart)}</i>
+        </span>
+      </span>`
+    button.addEventListener('click', () => selectSegment(segment))
+    li.appendChild(button)
+    ol.appendChild(li)
+  }
+}
+
+function selectSegment(segment) {
+  if (selectedSegmentKeys.has(segment.key)) selectedSegmentKeys.delete(segment.key)
+  else selectedSegmentKeys.add(segment.key)
+  sel = null
+  hoverMi = null
+  popup?.remove()
+  syncSelToMap()
+  renderList()
+  renderProfile()
+}
+
+function clearSegmentSelection() {
+  selectedSegmentKeys.clear()
+  syncSelToMap()
+  renderList()
+  renderProfile()
 }
 
 // ---------------------------------------------------------------- profile
@@ -522,7 +1072,7 @@ let geom = null // {W,H,padL,padR,padT,padB, x(), y(), miAtX()}
 function renderProfile() {
   const W = chart.clientWidth, H = chart.clientHeight
   if (!W || !H) return
-  const padL = 46, padR = 16, padT = 12, padB = 20
+  const padL = 46, padR = 48, padT = 12, padB = 20
   const eMin = Math.floor(course.minEleFt / 500) * 500
   const eMax = Math.ceil(course.maxEleFt / 500) * 500
   const x = mi => padL + (mi / course.totalMi) * (W - padL - padR)
@@ -545,6 +1095,17 @@ function renderProfile() {
     svg.appendChild(line(padL, y(e), W - padR, y(e), 'rgba(0,0,0,0.05)', 1))
     svg.appendChild(text(padL - 6, y(e) + 3, e.toLocaleString(), 'end', 8.5, 'rgba(0,0,0,0.35)'))
   }
+  // Secondary elevation axis in round metric intervals.
+  const axisX = W - padR
+  const ftPerM = 3.28084
+  const firstMeter = Math.ceil((eMin / ftPerM) / 200) * 200
+  const lastMeter = Math.floor((eMax / ftPerM) / 200) * 200
+  svg.appendChild(line(axisX, padT, axisX, H - padB, 'rgba(0,0,0,0.12)', 1))
+  for (let m = firstMeter; m <= lastMeter; m += 200) {
+    const py = y(m * ftPerM)
+    svg.appendChild(line(axisX, py, axisX + 4, py, 'rgba(0,0,0,0.3)', 1))
+    svg.appendChild(text(axisX + 7, py + 3, `${m} m`, 'start', 8.5, 'rgba(0,0,0,0.35)'))
+  }
   // mile ticks
   for (let m = 10; m < course.totalMi; m += 10) {
     svg.appendChild(line(x(m), H - padB, x(m), H - padB + 4, 'rgba(0,0,0,0.3)', 1))
@@ -560,20 +1121,25 @@ function renderProfile() {
   }
   const dArea = dLine + ` L ${x(course.totalMi)} ${H - padB} L ${x(0)} ${H - padB} Z`
 
+  const ranges = selectionRanges()
   const defs = document.createElementNS(NS, 'defs')
-  defs.innerHTML = `
-    <clipPath id="selclip"><rect x="${sel ? x(Math.min(sel.a, sel.b)) : 0}" y="0"
-      width="${sel ? Math.max(1, Math.abs(x(sel.b) - x(sel.a))) : 0}" height="${H}"/></clipPath>`
+  ranges.forEach((range, i) => {
+    const clip = document.createElementNS(NS, 'clipPath')
+    clip.setAttribute('id', `selclip-${i}`)
+    clip.appendChild(rect(x(range.a), 0, Math.max(1, x(range.b) - x(range.a)), H, C.wash))
+    defs.appendChild(clip)
+  })
   svg.appendChild(defs)
 
-  // Selection adds only a yellow wash; it does not alter the black drawing.
-  if (sel) {
+  // Every selected range gets a yellow wash; the black drawing stays untouched.
+  ranges.forEach((range, i) => {
     const selWash = path(dArea, C.wash, 'none', 0)
-    selWash.setAttribute('clip-path', 'url(#selclip)')
+    selWash.setAttribute('clip-path', `url(#selclip-${i})`)
     svg.appendChild(selWash)
-    for (const m of [Math.min(sel.a, sel.b), Math.max(sel.a, sel.b)]) {
-      svg.appendChild(line(x(m), padT, x(m), H - padB, C.highlight, 1))
-    }
+  })
+  const boundaries = new Set(ranges.flatMap(range => [range.a, range.b]))
+  for (const m of boundaries) {
+    svg.appendChild(line(x(m), padT, x(m), H - padB, C.highlight, 1))
   }
   // Draw the contour after the wash so it remains solid black and fully opaque.
   svg.appendChild(path(dLine, 'none', C.ink, 1.4))
@@ -584,7 +1150,7 @@ function renderProfile() {
     const px = x(w.mi), py = y(ptAt(w.mi).ele)
     const c = document.createElementNS(NS, 'circle')
     c.setAttribute('cx', px); c.setAttribute('cy', py); c.setAttribute('r', 2.3)
-    c.setAttribute('fill', '#ffffff')
+    c.setAttribute('fill', C.routeHighlight)
     c.setAttribute('stroke', C.ink)
     c.setAttribute('stroke-width', 1.1)
     svg.appendChild(c)
@@ -595,6 +1161,26 @@ function renderProfile() {
     const px = x(ev.mi)
     svg.appendChild(line(px, padT, px, H - padB, 'rgba(0,0,0,0.3)', 1, '2 3'))
     svg.appendChild(text(px + 4, padT + 8, `${ev.icon} ${hhmm(ev.t)}`, 'start', 8.5, 'rgba(0,0,0,0.5)'))
+  }
+
+  // GPS position is projected onto the nearest course mile.
+  if (userLocation) {
+    const px = x(userLocation.mi)
+    const py = y(ptAt(userLocation.mi).ele)
+    svg.appendChild(line(px, padT, px, H - padB, 'rgba(79,130,151,0.55)', 1.2, '3 3'))
+    const c = document.createElementNS(NS, 'circle')
+    c.setAttribute('cx', px); c.setAttribute('cy', py); c.setAttribute('r', 3)
+    c.setAttribute('fill', C.location); c.setAttribute('stroke', C.paper); c.setAttribute('stroke-width', 1.5)
+    svg.appendChild(c)
+    const markerSize = 18
+    const runner = document.createElementNS(NS, 'image')
+    runner.setAttribute('href', locationRunnerIcon)
+    runner.setAttribute('x', px - markerSize / 2)
+    runner.setAttribute('y', Math.max(padT, py - markerSize - 4))
+    runner.setAttribute('width', markerSize)
+    runner.setAttribute('height', markerSize)
+    runner.setAttribute('preserveAspectRatio', 'xMidYMid meet')
+    svg.appendChild(runner)
   }
 
   // hover crosshair
@@ -689,6 +1275,10 @@ chart.addEventListener('pointerdown', e => {
   dragging = true
   dragStart = geom.miAtX(localX(e))
   sel = null
+  if (selectedSegmentKeys.size) {
+    selectedSegmentKeys.clear()
+    if (filter === 'segments') renderList()
+  }
   chart.setPointerCapture(e.pointerId)
 })
 chart.addEventListener('pointermove', e => {
@@ -726,40 +1316,85 @@ chart.addEventListener('pointerleave', () => {
   renderProfile()
 })
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { sel = null; syncSelToMap(); renderProfile() }
+  if (e.key === 'Escape') {
+    sel = null
+    selectedSegmentKeys.clear()
+    syncSelToMap()
+    if (filter === 'segments') renderList()
+    renderProfile()
+  }
 })
 
 function syncSelToMap() {
   const src = map?.getSource('course-sel')
   if (!src) return
-  src.setData(sel
-    ? sliceLine(Math.min(sel.a, sel.b), Math.max(sel.a, sel.b))
-    : { type: 'FeatureCollection', features: [] })
+  src.setData({
+    type: 'FeatureCollection',
+    features: selectionRanges().map(range => sliceLine(range.a, range.b)),
+  })
 }
+
+const fmtKm = mi => (mi * 1.609344).toFixed(1)
+const fmtM = ft => Math.round(ft / 3.28084).toLocaleString()
+const statsColumns = (imperial, time, metric) =>
+  `<span class="imperial">${imperial}</span>` +
+  `<span class="time">${time}</span>` +
+  `<span class="metric">${metric}</span>`
 
 function renderStats() {
   const el = $('#pstats-main')
-  if (sel) {
+  const segments = selectedCrewSegments()
+  if (segments.length) {
+    const total = segmentTotals(segments)
+    const imperial =
+      `<b>${segments.length} segment${segments.length === 1 ? '' : 's'}</b> <span class="dim">·</span> ` +
+      `<b>${total.mi.toFixed(1)} mi</b> <span class="dim">·</span> ` +
+      `<b>+${fmtFt(total.gain)} ft</b> <span class="dim">/ −${fmtFt(total.loss)} ft</span>`
+    const metric =
+      `<b>${fmtKm(total.mi)} km</b> <span class="dim">·</span> ` +
+      `<b>+${fmtM(total.gain)} m</b> <span class="dim">/ −${fmtM(total.loss)} m</span>`
+    let time = `<b>${fmtDuration(total.duration)}</b> <span class="dim">combined</span>`
+    if (segments.length === 1) {
+      const { from, to } = segments[0]
+      time = `${hhmm(etaAt(from.mi))}→${hhmm(etaAt(to.mi))} ` +
+        `<span class="dim">(${fmtDuration(total.duration)})</span>`
+    }
+    el.innerHTML = statsColumns(imperial, time, metric)
+  } else if (sel) {
     const a = Math.min(sel.a, sel.b), b = Math.max(sel.a, sel.b)
     const s = statsBetween(a, b)
     const t0 = etaAt(a), t1 = etaAt(b)
-    el.innerHTML =
+    const imperial =
       `mi ${fmtMi(a)}–${fmtMi(b)} <span class="dim">·</span> <b>${s.mi.toFixed(1)} mi</b> ` +
-      `<span class="dim">·</span> <b>+${fmtFt(s.gain)} ft</b> <span class="dim">/ −${fmtFt(s.loss)} ft</span> ` +
-      `<span class="dim">·</span> ${hhmm(t0)}→${hhmm(t1)} <span class="dim">(${((t1 - t0) / 3600000).toFixed(1)} h)</span>`
+      `<span class="dim">·</span> <b>+${fmtFt(s.gain)} ft</b> <span class="dim">/ −${fmtFt(s.loss)} ft</span>`
+    const time =
+      `${hhmm(t0)}→${hhmm(t1)} <span class="dim">(${((t1 - t0) / 3600000).toFixed(1)} h)</span>`
+    const metric =
+      `km ${fmtKm(a)}–${fmtKm(b)} <span class="dim">·</span> <b>${fmtKm(s.mi)} km</b> ` +
+      `<span class="dim">·</span> <b>+${fmtM(s.gain)} m</b> <span class="dim">/ −${fmtM(s.loss)} m</span>`
+    el.innerHTML = statsColumns(imperial, time, metric)
   } else if (hoverMi != null) {
     const p = ptAt(hoverMi)
     const g = gradeAt(hoverMi)
     const t = etaAt(hoverMi)
-    el.innerHTML =
+    const grade = `${g >= 0 ? '+' : ''}${g.toFixed(1)}%`
+    const imperial =
       `mile <b>${fmtMi(hoverMi)}</b> <span class="dim">·</span> ${fmtFt(p.ele)} ft ` +
-      `<span class="dim">·</span> ${g >= 0 ? '+' : ''}${g.toFixed(1)}% ` +
-      `<span class="dim">·</span> ETA ${hhmm(t)}`
+      `<span class="dim">·</span> ${grade}`
+    const metric =
+      `km <b>${fmtKm(hoverMi)}</b> <span class="dim">·</span> ${fmtM(p.ele)} m ` +
+      `<span class="dim">·</span> ${grade}`
+    el.innerHTML = statsColumns(imperial, `ETA ${hhmm(t)}`, metric)
   } else {
-    el.innerHTML =
+    const imperial =
       `<b>${course.totalMi} mi</b> <span class="dim">·</span> <b>+${fmtFt(course.gainFt)} ft</b> ` +
       `<span class="dim">/ −${fmtFt(course.lossFt)} ft</span> <span class="dim">·</span> ` +
       `${fmtFt(course.minEleFt)}–${fmtFt(course.maxEleFt)} ft`
+    const metric =
+      `<b>${fmtKm(course.totalMi)} km</b> <span class="dim">·</span> <b>+${fmtM(course.gainFt)} m</b> ` +
+      `<span class="dim">/ −${fmtM(course.lossFt)} m</span> <span class="dim">·</span> ` +
+      `${fmtM(course.minEleFt)}–${fmtM(course.maxEleFt)} m`
+    el.innerHTML = statsColumns(imperial, '', metric)
   }
 }
 

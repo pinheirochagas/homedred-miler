@@ -26,11 +26,15 @@
       <p class="tot" id="totals"></p>
     </header>
 
-    <nav id="mapctl">
+    <nav id="mapctl" aria-label="Map controls">
       <button id="ctl-style">satellite</button>
       <button id="ctl-3d" class="on">relief</button>
       <button id="ctl-orbit">orbit</button>
       <button id="ctl-fit">frame</button>
+      <button id="ctl-location" aria-live="polite">my location</button>
+      <button id="ctl-water" class="on layer-start" aria-pressed="true">water</button>
+      <button id="ctl-bathrooms" aria-pressed="false">bathrooms</button>
+      <button id="ctl-parking" aria-pressed="false">parking</button>
     </nav>
   </main>
 
@@ -50,29 +54,30 @@
           <input type="range" id="plan-hours" min="20" max="44" step="0.5" />
         </label>
       </div>
-      <div id="plan-alerts"></div>
     </section>
 
     <div id="filters">
       <button data-f="all" class="on">all</button>
       <button data-f="crew">crew</button>
       <button data-f="water">water</button>
+      <button data-f="bathrooms">bathrooms</button>
+      <button data-f="parking">parking</button>
       <button data-f="gated">gated</button>
+      <button data-f="segments">segments</button>
     </div>
 
+    <div id="segment-summary" hidden aria-live="polite"></div>
     <ol id="wplist"></ol>
 
     <footer id="legend">
       <span>● crew access</span>
       <span>○ on foot only</span>
-      <span>◦ water</span>
     </footer>
   </aside>
 
   <section id="profile">
     <div id="pstats">
       <div id="pstats-main"></div>
-      <div id="pstats-hint">drag to measure — esc clears</div>
     </div>
     <div id="pchart"></div>
   </section>
