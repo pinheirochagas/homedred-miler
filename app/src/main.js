@@ -31,9 +31,10 @@ let renderedFilter = null
 const selectedSegmentKeys = new Set()
 let orbiting = false
 let satellite = false
+let relief = false
 let locating = false
 let userLocation = null
-const visibleFacilityTypes = new Set(['water'])
+const visibleFacilityTypes = new Set()
 
 // Grade-adjusted, even-effort pace model: 1,000 ft of climb ≈ 2 flat miles.
 const effortAt = mi => {
@@ -260,8 +261,8 @@ try {
     style: STYLE_LIGHT,
     center: [-122.58, 37.895],
     zoom: 10.35,
-    pitch: 58,
-    bearing: -14,
+    pitch: 0,
+    bearing: 0,
     antialias: true,
     attributionControl: false,
     // in the stacked touch layout one-finger swipes scroll the page; two fingers pan the map
@@ -308,7 +309,7 @@ function addCourseLayers() {
       maxzoom: 14,
     })
   }
-  map.setTerrain({ source: 'dem', exaggeration: 1.5 })
+  map.setTerrain(relief ? { source: 'dem', exaggeration: 1.5 } : null)
   map.setFog({
     range: [0.7, 10],
     color: '#ffffff',
@@ -687,7 +688,7 @@ if (map) {
   map.once('load', () => {
     map.fitBounds(bbox, {
       padding: fitPad(),
-      pitch: 52, bearing: -14, duration: 2600, essential: true,
+      pitch: 0, bearing: 0, duration: 2600, essential: true,
     })
   })
   popup = new mapboxgl.Popup({ className: 'wp-pop', offset: 16, maxWidth: '300px' })
@@ -717,7 +718,13 @@ function focusWaypoint(id, fromMap = false) {
 
   if (!fromMap) {
     stopOrbit()
-    map.flyTo({ center: [p.lon, p.lat], zoom: 13.6, pitch: 65, duration: 1900, essential: true })
+    map.flyTo({
+      center: [p.lon, p.lat],
+      zoom: 13.6,
+      pitch: relief ? 65 : 0,
+      duration: 1900,
+      essential: true,
+    })
   }
 }
 
@@ -794,10 +801,12 @@ $('#ctl-style').addEventListener('click', () => {
 })
 $('#ctl-3d').addEventListener('click', () => {
   if (!map) return
-  const on = $('#ctl-3d').classList.toggle('on')
-  if (on) {
+  relief = !relief
+  $('#ctl-3d').classList.toggle('on', relief)
+  $('#ctl-3d').setAttribute('aria-pressed', String(relief))
+  if (relief) {
     map.setTerrain({ source: 'dem', exaggeration: 1.5 })
-    map.easeTo({ pitch: 58, duration: 900 })
+    map.easeTo({ pitch: 58, bearing: -14, duration: 900 })
   } else {
     map.setTerrain(null)
     map.easeTo({ pitch: 0, bearing: 0, duration: 900 })
@@ -823,7 +832,12 @@ for (const [type, id] of [
 $('#ctl-fit').addEventListener('click', () => {
   if (!map) return
   stopOrbit()
-  map.fitBounds(bbox, { padding: fitPad(), pitch: 45, duration: 1600 })
+  map.fitBounds(bbox, {
+    padding: fitPad(),
+    pitch: relief ? 45 : 0,
+    bearing: relief ? -14 : 0,
+    duration: 1600,
+  })
 })
 
 let orbitRaf = null

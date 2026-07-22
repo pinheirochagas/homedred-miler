@@ -92,8 +92,8 @@ button:focus-visible { outline: 1px solid var(--g80); outline-offset: 3px; }
   display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
 }
 #mapctl button {
-  font-size: 13px; font-weight: 300;
-  color: var(--g80);
+  font-size: 13px; font-weight: 400;
+  color: var(--g55);
   padding: 2px 0;
   transition: color 0.15s;
 }
@@ -120,7 +120,7 @@ body.satellite #masthead .route,
 body.satellite #masthead .tot { color: var(--white); }
 body.satellite #masthead .sub { color: rgba(255, 255, 255, 0.72); }
 body.satellite #masthead { text-shadow: 0 0 24px rgba(0, 0, 0, 0.45); }
-body.satellite #mapctl button { color: rgba(255, 255, 255, 0.65); text-shadow: 0 0 14px rgba(0, 0, 0, 0.5); }
+body.satellite #mapctl button { color: rgba(255, 255, 255, 0.82); text-shadow: 0 0 14px rgba(0, 0, 0, 0.55); }
 body.satellite #mapctl button:hover,
 body.satellite #mapctl button.on { color: var(--white); }
 body.satellite #map .mapboxgl-ctrl-scale {
