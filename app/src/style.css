@@ -138,6 +138,34 @@ body.satellite #map .mapboxgl-ctrl-scale {
   min-height: 0;
 }
 
+#motivation {
+  padding: 30px;
+  border-bottom: 1px solid var(--hair);
+}
+#motivation p {
+  max-width: 38ch;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.55;
+}
+#motivation .motivation-lead {
+  display: inline-block;
+  margin-right: 2px;
+  font-size: 27px;
+  font-weight: 100;
+  line-height: 0.75;
+  letter-spacing: 0.015em;
+  vertical-align: -1px;
+}
+#motivation .ego {
+  font-family: 'UnifrakturCook', Georgia, serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
 #plan { padding: 30px 30px 20px; }
 .plan-head {
   display: flex; justify-content: space-between; align-items: baseline;
@@ -452,6 +480,8 @@ body.satellite #map .mapboxgl-ctrl-scale {
   }
   #pchart { padding: 0 8px; }
 
+  #motivation { padding: 24px 20px; }
+  #motivation p { max-width: 54ch; }
   #plan { padding: 24px 20px 16px; }
   #filters { padding: 12px 20px; }
   #segment-summary { padding: 11px 20px 12px; }
