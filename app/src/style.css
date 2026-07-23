@@ -4,6 +4,15 @@
    no color, no cards, no shadows. a printed spread, not a dashboard.
    ------------------------------------------------------------------ */
 
+/* Monster Blood by Yoga Letter — personal-use web embedding via 1001fonts.com. */
+@font-face {
+  font-family: 'Monster Blood';
+  src: url('./assets/fonts/monster-blood.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root {
   --white: #ffffff;
   --black: #000000;
@@ -158,11 +167,12 @@ body.satellite #map .mapboxgl-ctrl-scale {
   vertical-align: -1px;
 }
 #motivation .ego {
-  font-family: 'UnifrakturCook', Georgia, serif;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.01em;
+  font-family: 'Monster Blood', fantasy;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 0.8;
+  letter-spacing: 0.015em;
+  vertical-align: -1px;
   white-space: nowrap;
 }
 
