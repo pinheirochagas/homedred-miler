@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parse course_v4.gpx -> app/src/data/course.json + POI snap report.
 
-Computes cumulative distance, smoothed cumulative gain/loss prefix sums
+Computes cumulative distance, Strava-normalized cumulative gain/loss prefix sums
 (so the UI can compute stats for any segment instantly), and snaps a list
 of known Marin/SF landmarks onto the track to find their mile markers.
 """
@@ -19,6 +19,7 @@ NS = {"g": "http://www.topografix.com/GPX/1/1"}
 
 M_TO_FT = 3.28084
 M_TO_MI = 1 / 1609.344
+STRAVA_GAIN_M = 5377.0
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -28,15 +29,6 @@ def haversine(lat1, lon1, lat2, lon2):
     dl = math.radians(lon2 - lon1)
     a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
     return 2 * R * math.asin(math.sqrt(a))
-
-
-def smooth(vals, w=5):
-    half = w // 2
-    out = []
-    for i in range(len(vals)):
-        lo, hi = max(0, i - half), min(len(vals), i + half + 1)
-        out.append(sum(vals[lo:hi]) / (hi - lo))
-    return out
 
 
 def main():
@@ -53,24 +45,34 @@ def main():
     for i in range(1, n):
         dist[i] = dist[i - 1] + haversine(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1])
 
-    ele_s = smooth([p[2] for p in pts], w=7)
-
-    # Hysteresis-threshold gain/loss accumulation (2 m) to suppress noise.
-    THRESH = 2.0
+    # The exported GPX contains Strava's elevation samples, but not its
+    # proprietary cumulative-gain calculation. Use light sub-meter hysteresis
+    # to remove quantization noise, then normalize the prefixes to Strava's
+    # published 5,377 m total so whole-course and segment figures agree.
+    elevations = [p[2] for p in pts]
+    THRESH = 0.5
     gain = [0.0] * n
     loss = [0.0] * n
-    anchor = ele_s[0]
+    anchor = elevations[0]
     g = l = 0.0
     for i in range(1, n):
-        d = ele_s[i] - anchor
+        d = elevations[i] - anchor
         if d >= THRESH:
             g += d
-            anchor = ele_s[i]
+            anchor = elevations[i]
         elif d <= -THRESH:
             l += -d
-            anchor = ele_s[i]
+            anchor = elevations[i]
         gain[i] = g
         loss[i] = l
+
+    target_loss_m = STRAVA_GAIN_M - (elevations[-1] - elevations[0])
+    gain_scale = STRAVA_GAIN_M / g
+    loss_scale = target_loss_m / l
+    gain = [value * gain_scale for value in gain]
+    loss = [value * loss_scale for value in loss]
+    g = STRAVA_GAIN_M
+    l = target_loss_m
 
     total_mi = dist[-1] * M_TO_MI
     print(f"points={n}  total={total_mi:.2f} mi  gain={g * M_TO_FT:,.0f} ft  loss={l * M_TO_FT:,.0f} ft")
