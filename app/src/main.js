@@ -18,8 +18,9 @@ const $ = s => document.querySelector(s)
 
 // ---------------------------------------------------------------- state
 // race day: Sat Aug 8 2026, 12:00 · 24 h target
-// Version the key so plans saved under older defaults do not override noon.
-const saved = JSON.parse(localStorage.getItem('hm-plan-v3') || 'null')
+// Version the key so older saved targets do not override the 24 h default.
+const PLAN_STORAGE_KEY = 'hm-plan-v4'
+const saved = JSON.parse(localStorage.getItem(PLAN_STORAGE_KEY) || 'null')
 const plan = {
   start: saved?.start ? new Date(saved.start) : new Date(2026, 7, 8, 12, 0),
   hours: saved?.hours || 24,
@@ -876,7 +877,7 @@ $('#plan-hours').addEventListener('input', e => {
 })
 
 function refreshPlan() {
-  localStorage.setItem('hm-plan-v3', JSON.stringify({ start: plan.start.toISOString(), hours: plan.hours }))
+  localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify({ start: plan.start.toISOString(), hours: plan.hours }))
   $('#plan-hours-out').textContent = `${plan.hours} h`
   const fin = etaAt(course.totalMi)
   $('#plan-finish').textContent =
