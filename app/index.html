@@ -67,9 +67,19 @@
       <button data-f="parking">parking</button>
       <button data-f="gated">gated</button>
       <button data-f="segments">segments</button>
+      <button data-f="supplies">supplies</button>
     </div>
 
     <div id="segment-summary" hidden aria-live="polite"></div>
+    <div id="supplies-summary" hidden aria-live="polite"></div>
+    <form id="supplies-editor" aria-label="Add supply item" hidden>
+      <input id="supply-name" type="text" maxlength="80" placeholder="new item" autocomplete="off" required />
+      <select id="supply-category" aria-label="Supply category"></select>
+      <span class="supply-editor-actions">
+        <button type="submit">add</button>
+        <button type="button" id="supply-cancel">cancel</button>
+      </span>
+    </form>
     <ol id="wplist"></ol>
 
     <footer id="legend">

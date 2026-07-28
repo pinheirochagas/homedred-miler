@@ -219,7 +219,8 @@ body.satellite #map .mapboxgl-ctrl-scale {
   text-decoration-thickness: 1px;
 }
 
-#segment-summary {
+#segment-summary,
+#supplies-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -229,9 +230,12 @@ body.satellite #map .mapboxgl-ctrl-scale {
   font-size: 11px;
   line-height: 1.4;
 }
-#segment-summary[hidden] { display: none; }
-#segment-summary b { display: block; font-weight: 400; }
-#segment-summary small {
+#segment-summary[hidden],
+#supplies-summary[hidden] { display: none; }
+#segment-summary b,
+#supplies-summary b { display: block; font-weight: 400; }
+#segment-summary small,
+#supplies-summary small {
   display: block;
   margin-top: 2px;
   color: var(--g80);
@@ -241,14 +245,75 @@ body.satellite #map .mapboxgl-ctrl-scale {
   display: block;
   color: var(--g80);
 }
-#segment-summary button {
+#segment-summary button,
+#supplies-summary button {
   flex: none;
   color: var(--g80);
   font-size: 11px;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-#segment-summary button:hover { color: var(--black); }
+#segment-summary button:hover,
+#supplies-summary button:hover { color: var(--black); }
+#supplies-summary { display: block; }
+#supplies-summary [data-action='add'],
+#supplies-summary [data-action='csv'],
+#supplies-summary [data-action='undo'] { color: var(--black); }
+.supply-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 3px 11px;
+  margin-top: 7px;
+}
+
+#supplies-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 11px 14px;
+  padding: 14px 30px 15px;
+  border-bottom: 1px solid var(--hair);
+}
+#supplies-editor[hidden] { display: none; }
+#supply-name {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 2px 0 5px;
+  border: 0;
+  border-bottom: 1px solid var(--black);
+  border-radius: 0;
+  background: transparent;
+  color: var(--black);
+  font: 300 12.5px/1.35 var(--sans);
+  outline: 0;
+}
+#supply-name::placeholder { color: var(--g80); opacity: 1; }
+#supply-category {
+  min-width: 0;
+  padding: 3px 20px 3px 0;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--black);
+  font: 300 11px/1.35 var(--sans);
+  outline: 0;
+}
+#supply-name:focus,
+#supply-category:focus { border-bottom-color: var(--g55); }
+.supply-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.supply-editor-actions button {
+  color: var(--g80);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.supply-editor-actions button[type='submit'],
+.supply-editor-actions button:hover { color: var(--black); }
 
 #wplist {
   flex: 1; overflow-y: auto; list-style: none;
@@ -351,6 +416,109 @@ body.satellite #map .mapboxgl-ctrl-scale {
 .seg-eta { color: var(--black); }
 .seg-eta i { font-style: normal; color: var(--g80); }
 
+.supply-category {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 21px 30px 8px;
+  border-bottom: 1px solid var(--black);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.supply-category:first-child { padding-top: 16px; }
+.supply-category small {
+  color: var(--g80);
+  font: inherit;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+.supply-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 30px;
+  border-bottom: 1px solid var(--hair);
+  transition: background 0.15s;
+}
+.supply-item:hover { background: rgba(0, 0, 0, 0.025); }
+.supply-item label {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 14px;
+  min-height: 39px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.supply-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 7px;
+  min-width: 0;
+}
+.supply-name {
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.35;
+}
+.supply-copy small {
+  color: var(--g80);
+  font-size: 10px;
+  font-weight: 300;
+}
+.supply-item input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.supply-box {
+  position: relative;
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--black);
+}
+.supply-item input:checked + .supply-box::after {
+  content: '×';
+  position: absolute;
+  inset: -4px -2px 0;
+  font-size: 21px;
+  font-weight: 300;
+  line-height: 17px;
+  text-align: center;
+  transform: rotate(-5deg);
+}
+.supply-item input:focus-visible + .supply-box {
+  outline: 1px solid var(--g80);
+  outline-offset: 3px;
+}
+.supply-item.done .supply-name {
+  color: var(--g80);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.supply-remove {
+  width: 18px;
+  height: 18px;
+  color: var(--g55);
+  font-size: 18px;
+  font-weight: 200;
+  line-height: 16px;
+  opacity: 0.7;
+  transition: color 0.15s, opacity 0.15s;
+}
+.supply-remove:hover,
+.supply-remove:focus-visible {
+  color: var(--black);
+  opacity: 1;
+}
+
 #legend {
   display: flex; gap: 18px;
   padding: 14px 30px;
@@ -358,6 +526,7 @@ body.satellite #map .mapboxgl-ctrl-scale {
   font-size: 11px; font-weight: 300;
   color: var(--g80);
 }
+#legend[hidden] { display: none; }
 
 /* ---------- elevation profile ---------- */
 #profile {
@@ -494,10 +663,14 @@ body.satellite #map .mapboxgl-ctrl-scale {
   #motivation p { max-width: 54ch; }
   #plan { padding: 24px 20px 16px; }
   #filters { padding: 12px 20px; }
-  #segment-summary { padding: 11px 20px 12px; }
+  #segment-summary,
+  #supplies-summary { padding: 11px 20px 12px; }
+  #supplies-editor { padding-right: 20px; padding-left: 20px; }
   .wp { padding: 13px 20px; }
   .leg { padding: 5px 20px 5px 80px; }
   .segment button { padding: 14px 20px; }
+  .supply-category { padding-right: 20px; padding-left: 20px; }
+  .supply-item { padding-right: 20px; padding-left: 20px; }
   #legend { padding: 14px 20px; }
 
   #err { left: 20px; right: 20px; bottom: 20px; }

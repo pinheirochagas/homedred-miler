@@ -7,6 +7,7 @@ import {
 } from './data.js'
 import { waypoints } from './waypoints.js'
 import { facilities } from './facilities.js'
+import { supplyGroups as defaultSupplyGroups } from './supplies.js'
 import { resolveWindow, windowStatus, sunTimes, hhmm } from './sun.js'
 import waterFacilityIcon from './assets/facilities/facility-water.png'
 import bathroomFacilityIcon from './assets/facilities/facility-bathroom.png'
@@ -25,6 +26,59 @@ const plan = {
   start: saved?.start ? new Date(saved.start) : new Date(2026, 7, 8, 12, 0),
   hours: saved?.hours || 24,
 }
+const SUPPLY_STORAGE_KEY = 'hm-supplies-v1'
+const SUPPLY_LIST_STORAGE_KEY = 'hm-supply-list-v1'
+const RETIRED_SUPPLY_IDS = new Set([
+  'race-bib',
+  'post-race-t-shirt',
+  'post-race-shorts',
+  'post-race-sweater',
+  'post-race-socks',
+  'post-race-sandals',
+  'recovery-drink',
+])
+const capitalizeSupplyLabel = label =>
+  label ? label.charAt(0).toLocaleUpperCase() + label.slice(1) : label
+const normalizeSupplyItem = item => ({ ...item, label: capitalizeSupplyLabel(item.label) })
+const cloneSupplyGroups = groups => groups.map(group => ({
+  ...group,
+  items: group.items.map(normalizeSupplyItem),
+}))
+let supplyGroups = (() => {
+  try {
+    const savedGroups = JSON.parse(localStorage.getItem(SUPPLY_LIST_STORAGE_KEY) || 'null')
+    if (!Array.isArray(savedGroups)) return cloneSupplyGroups(defaultSupplyGroups)
+    return defaultSupplyGroups.map(defaultGroup => {
+      const savedGroup = savedGroups.find(group => group?.id === defaultGroup.id)
+      if (!Array.isArray(savedGroup?.items)) {
+        return { ...defaultGroup, items: defaultGroup.items.map(item => ({ ...item })) }
+      }
+      const seen = new Set()
+      const items = savedGroup.items.flatMap(item => {
+        if (typeof item?.id !== 'string' || typeof item?.label !== 'string') return []
+        const id = item.id.trim()
+        const label = capitalizeSupplyLabel(item.label.trim())
+        if (!id || !label || seen.has(id) || RETIRED_SUPPLY_IDS.has(id)) return []
+        seen.add(id)
+        return [{ id, label, ...(typeof item.detail === 'string' ? { detail: item.detail } : {}) }]
+      })
+      return { ...defaultGroup, items }
+    })
+  } catch {
+    return cloneSupplyGroups(defaultSupplyGroups)
+  }
+})()
+const allSupplyItems = () => supplyGroups.flatMap(group => group.items)
+const supplyItemIds = new Set(allSupplyItems().map(item => item.id))
+const checkedSupplies = (() => {
+  try {
+    const ids = JSON.parse(localStorage.getItem(SUPPLY_STORAGE_KEY) || '[]')
+    return new Set(Array.isArray(ids) ? ids.filter(id => supplyItemIds.has(id)) : [])
+  } catch {
+    return new Set()
+  }
+})()
+let lastRemovedSupply = null
 let sel = null            // {a, b} miles
 let hoverMi = null
 let filter = 'all'
@@ -904,9 +958,13 @@ function visible(w) {
 function renderList() {
   const ol = $('#wplist')
   const summary = $('#segment-summary')
+  const suppliesSummary = $('#supplies-summary')
   const scrollTop = renderedFilter === filter ? ol.scrollTop : 0
   renderedFilter = filter
   ol.innerHTML = ''
+  suppliesSummary.hidden = true
+  $('#supplies-editor').hidden = true
+  $('#legend').hidden = filter === 'supplies'
   if (filter === 'segments') {
     renderSegmentSummary(summary)
     renderSegments(ol)
@@ -914,6 +972,12 @@ function renderList() {
     return
   }
   summary.hidden = true
+  if (filter === 'supplies') {
+    renderSuppliesSummary(suppliesSummary)
+    renderSupplies(ol, suppliesSummary)
+    ol.scrollTop = scrollTop
+    return
+  }
   if (FACILITY_TYPES[filter]) {
     renderFacilityList(ol, filter)
     ol.scrollTop = scrollTop
@@ -978,6 +1042,222 @@ function renderFacilityList(ol, type) {
     ol.appendChild(li)
   })
 }
+
+function persistSupplies() {
+  const ids = allSupplyItems()
+    .filter(item => checkedSupplies.has(item.id))
+    .map(item => item.id)
+  localStorage.setItem(SUPPLY_STORAGE_KEY, JSON.stringify(ids))
+}
+
+function persistSupplyList() {
+  localStorage.setItem(SUPPLY_LIST_STORAGE_KEY, JSON.stringify(supplyGroups))
+}
+
+function openSupplyEditor() {
+  const editor = $('#supplies-editor')
+  const category = $('#supply-category')
+  const previousCategory = category.value
+  category.innerHTML = ''
+  for (const group of supplyGroups) {
+    const option = document.createElement('option')
+    option.value = group.id
+    option.textContent = group.label
+    category.appendChild(option)
+  }
+  if (supplyGroups.some(group => group.id === previousCategory)) category.value = previousCategory
+  editor.hidden = false
+  $('#supply-name').focus()
+}
+
+function csvCell(value) {
+  const text = String(value ?? '')
+  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text
+  return `"${safe.replaceAll('"', '""')}"`
+}
+
+function downloadSuppliesCsv() {
+  const rows = [['category', 'item', 'detail', 'packed']]
+  for (const group of supplyGroups) {
+    for (const item of group.items) {
+      rows.push([
+        group.label,
+        item.label,
+        item.detail || '',
+        checkedSupplies.has(item.id) ? 'yes' : 'no',
+      ])
+    }
+  }
+  const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'homedred-miler-supplies.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+function missingDefaultSupplyCount() {
+  return defaultSupplyGroups.reduce((total, defaultGroup) => {
+    const group = supplyGroups.find(candidate => candidate.id === defaultGroup.id)
+    const ids = new Set(group?.items.map(item => item.id) || [])
+    return total + defaultGroup.items.filter(item => !ids.has(item.id)).length
+  }, 0)
+}
+
+function undoSupplyRemoval() {
+  if (!lastRemovedSupply) return
+  const { groupId, item, index, wasChecked } = lastRemovedSupply
+  const group = supplyGroups.find(candidate => candidate.id === groupId)
+  if (group && !group.items.some(candidate => candidate.id === item.id)) {
+    group.items.splice(Math.min(index, group.items.length), 0, item)
+    if (wasChecked) checkedSupplies.add(item.id)
+  }
+  lastRemovedSupply = null
+  persistSupplyList()
+  persistSupplies()
+  renderList()
+}
+
+function restoreDefaultSupplies() {
+  for (const defaultGroup of defaultSupplyGroups) {
+    const group = supplyGroups.find(candidate => candidate.id === defaultGroup.id)
+    if (!group) continue
+    const byId = new Map(group.items.map(item => [item.id, item]))
+    const defaultIds = new Set(defaultGroup.items.map(item => item.id))
+    const restoredDefaults = defaultGroup.items.map(item => byId.get(item.id) || normalizeSupplyItem(item))
+    const customItems = group.items.filter(item => !defaultIds.has(item.id))
+    group.items = [...restoredDefaults, ...customItems]
+  }
+  lastRemovedSupply = null
+  persistSupplyList()
+  persistSupplies()
+  renderList()
+}
+
+function renderSuppliesSummary(summary) {
+  const items = allSupplyItems()
+  const checked = items.filter(item => checkedSupplies.has(item.id)).length
+  const remaining = items.length - checked
+  const missingDefaults = missingDefaultSupplyCount()
+  const status = lastRemovedSupply
+    ? `${lastRemovedSupply.item.label} removed`
+    : items.length ? (remaining ? `${remaining} remaining` : 'ready to go') : 'no items'
+  summary.hidden = false
+  summary.innerHTML = `
+    <span>
+      <b>${checked} / ${items.length} packed</b>
+      <small>${status}</small>
+    </span>
+    <span class="supply-summary-actions">
+      <button type="button" data-action="add">add item</button>
+      <button type="button" data-action="csv">download csv</button>
+      <button type="button" data-action="undo" aria-label="Undo last removal"${lastRemovedSupply ? '' : ' hidden'}>undo</button>
+      <button type="button" data-action="restore"${missingDefaults ? '' : ' hidden'}>restore defaults</button>
+      <button type="button" data-action="clear"${checked ? '' : ' hidden'}>clear checks</button>
+    </span>`
+  summary.querySelector('[data-action="add"]').addEventListener('click', openSupplyEditor)
+  summary.querySelector('[data-action="csv"]').addEventListener('click', downloadSuppliesCsv)
+  summary.querySelector('[data-action="undo"]').addEventListener('click', undoSupplyRemoval)
+  summary.querySelector('[data-action="restore"]').addEventListener('click', restoreDefaultSupplies)
+  const clear = summary.querySelector('[data-action="clear"]')
+  clear.addEventListener('click', () => {
+    checkedSupplies.clear()
+    persistSupplies()
+    renderList()
+  })
+}
+
+function renderSupplies(ol, summary) {
+  for (const group of supplyGroups) {
+    const category = document.createElement('li')
+    category.className = 'supply-category'
+    const categoryName = document.createElement('span')
+    categoryName.textContent = group.label
+    const groupCount = document.createElement('small')
+    category.append(categoryName, groupCount)
+    const updateGroupCount = () => {
+      const checked = group.items.filter(item => checkedSupplies.has(item.id)).length
+      groupCount.textContent = `${checked} / ${group.items.length}`
+    }
+    updateGroupCount()
+    ol.appendChild(category)
+
+    for (const item of group.items) {
+      const li = document.createElement('li')
+      li.className = 'supply-item' + (checkedSupplies.has(item.id) ? ' done' : '')
+      li.dataset.supplyId = item.id
+      const label = document.createElement('label')
+      const copy = document.createElement('span')
+      copy.className = 'supply-copy'
+      const name = document.createElement('span')
+      name.className = 'supply-name'
+      name.textContent = item.label
+      copy.appendChild(name)
+      if (item.detail) {
+        const detail = document.createElement('small')
+        detail.textContent = item.detail
+        copy.appendChild(detail)
+      }
+      const input = document.createElement('input')
+      input.type = 'checkbox'
+      input.checked = checkedSupplies.has(item.id)
+      input.setAttribute('aria-label', `Pack ${item.label}`)
+      const box = document.createElement('span')
+      box.className = 'supply-box'
+      box.setAttribute('aria-hidden', 'true')
+      label.append(copy, input, box)
+      input.addEventListener('change', () => {
+        if (input.checked) checkedSupplies.add(item.id)
+        else checkedSupplies.delete(item.id)
+        li.classList.toggle('done', input.checked)
+        persistSupplies()
+        updateGroupCount()
+        renderSuppliesSummary(summary)
+      })
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'supply-remove'
+      remove.textContent = '−'
+      remove.setAttribute('aria-label', `Remove ${item.label}`)
+      remove.addEventListener('click', () => {
+        lastRemovedSupply = {
+          groupId: group.id,
+          item: { ...item },
+          index: group.items.findIndex(candidate => candidate.id === item.id),
+          wasChecked: checkedSupplies.has(item.id),
+        }
+        group.items = group.items.filter(candidate => candidate.id !== item.id)
+        checkedSupplies.delete(item.id)
+        persistSupplyList()
+        persistSupplies()
+        renderList()
+      })
+      li.append(label, remove)
+      ol.appendChild(li)
+    }
+  }
+}
+
+$('#supplies-editor').addEventListener('submit', event => {
+  event.preventDefault()
+  const name = $('#supply-name')
+  const label = capitalizeSupplyLabel(name.value.trim())
+  const group = supplyGroups.find(candidate => candidate.id === $('#supply-category').value)
+  if (!label || !group) return
+  const id = `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+  group.items.push({ id, label })
+  persistSupplyList()
+  name.value = ''
+  renderList()
+  document.querySelector(`[data-supply-id="${id}"]`)?.scrollIntoView({ block: 'nearest' })
+})
+$('#supply-cancel').addEventListener('click', () => {
+  $('#supply-name').value = ''
+  $('#supplies-editor').hidden = true
+})
 
 const weekday = d => d.toLocaleDateString('en-US', { weekday: 'short' })
 const fmtDuration = ms => {
