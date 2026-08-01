@@ -1,0 +1,16 @@
+SEGMENT,DAY,ETA,MILE,AID STATION,PACER IN,PACER OUT,CAR SUPPLY,TRANSPORT,NOTES
+1,Sat,10:00: AM,0,Start — Golden Gate Park,1,1,no need,no need,
+2,Sat,10:50: AM,4.1,GGB south · Welcome Center,1,1,no need,no need,
+3,Sat,11:11: AM,5.9,GGB north · Vista Point,Jim + 1,Jim + 1,no need,no need,
+4,Sat,12:18: PM,10.8,Rodeo Beach,Jim,Jim,Stef + Rodeo,Stef + Rodeo,
+5,Sat,2:06: PM,17.2,Muir Beach,Jim,2,Stef + Rodeo,Stef + Rodeo,
+6,Sat,3:41: PM,22.9,Pantoll Ranger Station,2,2,Jonathan,no need,
+7,Sat,4:27: PM,26.9,Stinson Beach,2,Jonathan,Jonathan,no need,
+8,Sat,8:30: PM,43.5,Bolinas Ridge Trailhead,Jonathan,Andrey,Max,Max + Doug,Max drops Andrey from his home - Doug drives Jonathan back to Stinson
+9,Sat,9:38: PM,49.5,Leo T. Cronin roadside,Andrey,Andrey,Max,Max,
+10,Sun,1:45: AM,65,Bolinas Rd × Sky Oaks Rd,Andrey,3,Doug,Doug,Doug drives Andrey back to his home 
+11,Sun,4:47: AM,76.1,Mt Tam East Peak,3,3,no need,no need,
+12,Sun,5:39: AM,80.5,Mountain Home Inn,3,Brian,Jonathan,no need,Brian drives to Tennessee Valley and meet me at Mountain Home Inn. Jonathan Brings 3 to Tennesse Valley for Brian to give them a ride home
+13,Sun,7:31: AM,88.9,Tennessee Valley,Brian,Margaritta,Jonathan,no need,Margaritta drives to Tennessee Valley
+14,Sun,8:48: AM,94.1,GGB north · return,Margaritta,4,no need,Stef + Rodeo,Jonathan brings Margaritta back to her car at Tennessee Valley
+15,Sun,9:08: AM,95.9,GGB south · return,4,Stef + Rodeo,no need,Stef + Rodeo,

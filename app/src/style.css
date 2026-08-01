@@ -370,6 +370,126 @@ body.satellite #map .mapboxgl-ctrl-scale {
 .wp + .wp { border-top: 1px solid var(--hair); }
 .leg + .wp { border-top: none; }
 
+.crew-plan-intro {
+  display: grid;
+  gap: 3px;
+  padding: 13px 30px 14px;
+  border-bottom: 1px solid var(--hair);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--g80);
+}
+.crew-plan-intro b {
+  color: var(--black);
+  font-size: 11px;
+  font-weight: 400;
+}
+.crew-plan-stop + .crew-plan-stop { border-top: 1px solid var(--hair); }
+.crew-plan-stop button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 0 11px;
+  padding: 15px 30px 16px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.crew-plan-stop button:hover { background: rgba(0, 0, 0, 0.025); }
+.crew-plan-no {
+  padding-top: 2px;
+  color: var(--g80);
+  font-size: 10px;
+  font-weight: 300;
+}
+.crew-plan-main { min-width: 0; }
+.crew-plan-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 9px;
+  align-items: baseline;
+}
+.crew-plan-name {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+.crew-plan-mile {
+  flex: none;
+  color: var(--g80);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.crew-plan-details {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+}
+.crew-plan-line {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 7px;
+  align-items: start;
+  color: var(--g55);
+  font-size: 10.5px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+.crew-plan-key {
+  padding-top: 1px;
+  color: var(--g80);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+.crew-plan-line.pacing .crew-plan-key { color: #8a8b00; }
+.crew-plan-line.supplies .crew-plan-key { color: #4b7083; }
+.crew-plan-line.transport .crew-plan-key { color: #587052; }
+.crew-plan-line.supplies > span:last-child {
+  color: var(--black);
+  font-weight: 500;
+}
+.crew-plan-line.notes {
+  margin-top: 2px;
+  color: var(--g80);
+}
+.crew-pacing-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+.crew-pacer-chip {
+  display: inline-block;
+  padding: 1px 4px 2px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 2px;
+  background: var(--highlight);
+  color: var(--black);
+  font-weight: 400;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.crew-pacer-separator { color: var(--g55); }
+.crew-pacer-state { margin-left: 1px; color: var(--g80); }
+.crew-plan-time {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 1px;
+  font-size: 12px;
+  font-weight: 300;
+  text-align: right;
+}
+.crew-plan-time em {
+  color: var(--gb0);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 300;
+}
+
 .segment + .segment { border-top: 1px solid var(--hair); }
 .segment button {
   width: 100%;
@@ -668,6 +788,8 @@ body.satellite #map .mapboxgl-ctrl-scale {
   #supplies-editor { padding-right: 20px; padding-left: 20px; }
   .wp { padding: 13px 20px; }
   .leg { padding: 5px 20px 5px 80px; }
+  .crew-plan-intro { padding-right: 20px; padding-left: 20px; }
+  .crew-plan-stop button { padding-right: 20px; padding-left: 20px; }
   .segment button { padding: 14px 20px; }
   .supply-category { padding-right: 20px; padding-left: 20px; }
   .supply-item { padding-right: 20px; padding-left: 20px; }

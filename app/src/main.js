@@ -7,6 +7,7 @@ import {
 } from './data.js'
 import { waypoints } from './waypoints.js'
 import { facilities } from './facilities.js'
+import { crewPlan } from './crew-plan.js'
 import { supplyGroups as defaultSupplyGroups } from './supplies.js'
 import { resolveWindow, windowStatus, sunTimes, hhmm } from './sun.js'
 import waterFacilityIcon from './assets/facilities/facility-water.png'
@@ -18,12 +19,12 @@ const TOKEN = import.meta.env.MAPBOX_TOKEN
 const $ = s => document.querySelector(s)
 
 // ---------------------------------------------------------------- state
-// race day: Sat Aug 8 2026, 12:00 · 24 h target
-// Version the key so older saved targets do not override the 24 h default.
-const PLAN_STORAGE_KEY = 'hm-plan-v4'
+// race day: Sat Aug 8 2026, 10:00 · 24 h target
+// Version the key so older saved starts and targets do not override these defaults.
+const PLAN_STORAGE_KEY = 'hm-plan-v5'
 const saved = JSON.parse(localStorage.getItem(PLAN_STORAGE_KEY) || 'null')
 const plan = {
-  start: saved?.start ? new Date(saved.start) : new Date(2026, 7, 8, 12, 0),
+  start: saved?.start ? new Date(saved.start) : new Date(2026, 7, 8, 10, 0),
   hours: saved?.hours || 24,
 }
 const SUPPLY_STORAGE_KEY = 'hm-supplies-v1'
@@ -964,7 +965,13 @@ function renderList() {
   ol.innerHTML = ''
   suppliesSummary.hidden = true
   $('#supplies-editor').hidden = true
-  $('#legend').hidden = filter === 'supplies'
+  $('#legend').hidden = filter === 'supplies' || filter === 'crew'
+  if (filter === 'crew') {
+    summary.hidden = true
+    renderCrewPlan(ol)
+    ol.scrollTop = scrollTop
+    return
+  }
   if (filter === 'segments') {
     renderSegmentSummary(summary)
     renderSegments(ol)
@@ -1014,6 +1021,166 @@ function renderList() {
     ol.appendChild(li)
   })
   ol.scrollTop = scrollTop
+}
+
+function appendCrewValue(element, value) {
+  const pieces = value.split(/(Pacer \d+)/g)
+  for (const piece of pieces) {
+    if (!piece) continue
+    if (/^Pacer \d+$/.test(piece)) {
+      const placeholder = document.createElement('span')
+      placeholder.className = 'crew-pacer-chip'
+      placeholder.textContent = piece
+      element.appendChild(placeholder)
+    } else {
+      element.append(document.createTextNode(piece))
+    }
+  }
+}
+
+function appendPacerSeparator(element, value, state = false) {
+  const separator = document.createElement('span')
+  separator.className = state ? 'crew-pacer-state' : 'crew-pacer-separator'
+  separator.textContent = value
+  element.appendChild(separator)
+}
+
+function appendPacerGroup(element, value) {
+  value.split(/\s+\+\s+/).forEach((name, index) => {
+    if (index) appendPacerSeparator(element, '+')
+    const pacer = document.createElement('span')
+    pacer.className = 'crew-pacer-chip'
+    pacer.textContent = name
+    element.appendChild(pacer)
+  })
+}
+
+function crewPacingLine(stop) {
+  if (!stop.pacerIn && !stop.pacerOut) return null
+  const line = document.createElement('div')
+  line.className = 'crew-plan-line pacing'
+  const key = document.createElement('span')
+  key.className = 'crew-plan-key'
+  key.textContent = 'pacing'
+  const text = document.createElement('span')
+  text.className = 'crew-pacing-value'
+
+  if (stop.segment === 1 && stop.pacerOut) {
+    appendPacerGroup(text, stop.pacerOut)
+    appendPacerSeparator(text, 'starts', true)
+  } else if (stop.pacerIn && stop.pacerOut && stop.pacerIn === stop.pacerOut) {
+    appendPacerGroup(text, stop.pacerOut)
+    appendPacerSeparator(text, 'continues', true)
+  } else if (stop.pacerIn && stop.pacerOut) {
+    appendPacerGroup(text, stop.pacerIn)
+    appendPacerSeparator(text, '→')
+    appendPacerGroup(text, stop.pacerOut)
+  } else if (stop.pacerOut) {
+    appendPacerGroup(text, stop.pacerOut)
+    appendPacerSeparator(text, 'starts', true)
+  } else {
+    appendPacerGroup(text, stop.pacerIn)
+    appendPacerSeparator(text, 'finishes', true)
+  }
+
+  line.append(key, text)
+  return line
+}
+
+function crewPlanLine(label, value, tone) {
+  if (!value) return null
+  const line = document.createElement('div')
+  line.className = `crew-plan-line ${tone}`
+  const key = document.createElement('span')
+  key.className = 'crew-plan-key'
+  key.textContent = label
+  const text = document.createElement('span')
+  appendCrewValue(text, value)
+  line.append(key, text)
+  return line
+}
+
+function renderCrewPlan(ol) {
+  const placeholders = [...new Set(
+    crewPlan.flatMap(stop =>
+      `${stop.pacerIn} ${stop.pacerOut}`.match(/Pacer \d+/g) || []),
+  )].sort((a, b) => Number(a.slice(6)) - Number(b.slice(6)))
+
+  const intro = document.createElement('li')
+  intro.className = 'crew-plan-intro'
+  const introTitle = document.createElement('b')
+  introTitle.textContent = 'Aid-station plan'
+  const introText = document.createElement('span')
+  if (placeholders.length) {
+    placeholders.forEach((placeholder, index) => {
+      if (index) introText.append(', ')
+      const chip = document.createElement('span')
+      chip.className = 'crew-pacer-chip'
+      chip.textContent = placeholder
+      introText.appendChild(chip)
+    })
+    introText.append(' are open assignments. ETAs follow the start and target above.')
+  } else {
+    introText.textContent = 'ETAs follow the start and target above.'
+  }
+  intro.append(introTitle, introText)
+  ol.appendChild(intro)
+
+  for (const stop of crewPlan) {
+    const waypoint = crewPoints.reduce((nearest, candidate) =>
+      Math.abs(candidate.mi - stop.mi) < Math.abs(nearest.mi - stop.mi)
+        ? candidate
+        : nearest, crewPoints[0])
+    const eta = etaAt(stop.mi)
+    const li = document.createElement('li')
+    li.className = 'crew-plan-stop'
+    if (/Pacer \d+/.test(`${stop.pacerIn} ${stop.pacerOut}`)) li.classList.add('open')
+    li.dataset.id = waypoint.id
+
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.setAttribute('aria-label', `${stop.name}, mile ${fmtMi(stop.mi)}, ETA ${hhmm(eta)}`)
+
+    const number = document.createElement('span')
+    number.className = 'crew-plan-no'
+    number.textContent = String(stop.segment).padStart(2, '0')
+
+    const main = document.createElement('span')
+    main.className = 'crew-plan-main'
+    const heading = document.createElement('span')
+    heading.className = 'crew-plan-heading'
+    const name = document.createElement('span')
+    name.className = 'crew-plan-name'
+    name.textContent = stop.name
+    const mile = document.createElement('span')
+    mile.className = 'crew-plan-mile'
+    mile.textContent = `mile ${fmtMi(stop.mi)}`
+    heading.append(name, mile)
+
+    const details = document.createElement('span')
+    details.className = 'crew-plan-details'
+    const lines = [
+      crewPacingLine(stop),
+      crewPlanLine('supplies', stop.supplies, 'supplies'),
+      crewPlanLine('transport', stop.transport, 'transport'),
+      crewPlanLine('notes', stop.notes, 'notes'),
+    ].filter(Boolean)
+    details.append(...lines)
+    main.append(heading, details)
+
+    const time = document.createElement('span')
+    time.className = 'crew-plan-time'
+    const clock = document.createElement('span')
+    clock.textContent = hhmm(eta)
+    const day = document.createElement('em')
+    day.textContent = weekday(eta)
+    time.append(clock, day)
+
+    button.append(number, main, time)
+    button.addEventListener('click', () => focusWaypoint(waypoint.id))
+    li.appendChild(button)
+    ol.appendChild(li)
+  }
 }
 
 function renderFacilityList(ol, type) {

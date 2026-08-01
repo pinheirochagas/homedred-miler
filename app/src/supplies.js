@@ -50,6 +50,8 @@ export const supplyGroups = [
       { id: 'antacid', label: 'antacid' },
       { id: 'acetaminophen', label: 'Tylenol / acetaminophen' },
       { id: 'personal-medication', label: 'personal medication' },
+      { id: 'toothbrush', label: 'toothbrush' },
+      { id: 'toothpaste', label: 'toothpaste' },
     ],
   },
   {
@@ -58,8 +60,7 @@ export const supplyGroups = [
     items: [
       { id: 'water', label: 'water' },
       { id: 'sparkling-water', label: 'sparkling water', detail: 'crew / finish' },
-      { id: 'skratch-carbs', label: 'Skratch carbohydrate mix' },
-      { id: 'electrolytes', label: 'electrolyte mix / capsules' },
+      { id: 'redbull', label: 'Red Bull' },
       { id: 'gels-chews', label: 'gels / chews' },
       { id: 'salty-snacks', label: 'salty snacks' },
       { id: 'real-food', label: 'real food' },

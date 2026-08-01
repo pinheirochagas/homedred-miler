@@ -1,9 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="app-loading">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Homedred Miler</title>
+  <style>html.app-loading body { visibility: hidden; }</style>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      requestAnimationFrame(() => document.documentElement.classList.remove('app-loading'))
+    }, { once: true })
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300;400;500&display=swap" rel="stylesheet" />
@@ -16,7 +22,7 @@
     <header id="masthead">
       <h1>Homedred<br />Miler</h1>
       <p class="route">Home
-        <svg class="loop" viewBox="0 0 24 24" aria-label="out and back">
+        <svg class="loop" viewBox="0 0 24 24" width="13" height="13" aria-label="out and back">
           <path d="M23 4v6h-6M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
             fill="none" stroke="currentColor" stroke-width="1.6"
             stroke-linecap="round" stroke-linejoin="round" />
@@ -97,6 +103,6 @@
 
   <div id="err" hidden></div>
 
-  <script type="module" src="/src/main.js"></script>
+  <script type="module" src="/src/main.js?v=5"></script>
 </body>
 </html>

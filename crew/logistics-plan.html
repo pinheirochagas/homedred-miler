@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Homedred Miler — Crew Plan</title>
+  <style>
+    :root {
+      --paper: #f5f5f1;
+      --ink: #11110f;
+      --muted: #6d6d67;
+      --quiet: #989890;
+      --line: #cecec5;
+      --line-light: #e5e5de;
+      --highlight: #f1f17c;
+      --max: 1080px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button { font: inherit; }
+    button:focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+
+    .page {
+      width: min(calc(100% - 48px), var(--max));
+      margin: 0 auto;
+      padding: 42px 0 72px;
+    }
+
+    .masthead {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 32px;
+      align-items: end;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .eyebrow,
+    .stop-no,
+    .time,
+    .mile,
+    .key,
+    footer {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Arial Narrow", "Helvetica Neue", Helvetica, sans-serif;
+      font-size: clamp(46px, 7vw, 86px);
+      font-stretch: condensed;
+      font-weight: 400;
+      letter-spacing: -0.065em;
+      line-height: 0.9;
+    }
+
+    .intro {
+      max-width: 680px;
+      margin: 20px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .print {
+      min-height: 34px;
+      padding: 7px 12px;
+      border: 1px solid var(--ink);
+      border-radius: 2px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .print:hover { background: var(--ink); color: var(--paper); }
+
+    .source-note {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin: 24px 0 0;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .source-note b { color: var(--ink); font-weight: 500; }
+
+    #plan {
+      margin: 28px 0 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid var(--ink);
+    }
+
+    .stop {
+      display: grid;
+      grid-template-columns: 48px 118px minmax(0, 1fr);
+      min-height: 118px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stop-no {
+      padding: 17px 12px 0 0;
+      color: var(--quiet);
+      font-size: 10px;
+    }
+
+    .time {
+      padding: 16px 16px;
+      border-left: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .time strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--ink);
+      font-family: "Arial Narrow", "Helvetica Neue", sans-serif;
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .content {
+      min-width: 0;
+      padding: 15px 0 17px 20px;
+    }
+
+    .stop-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+
+    h2 { margin: 0; font-size: 16px; font-weight: 500; }
+    .mile { flex: none; color: var(--muted); font-size: 12px; font-weight: 600; }
+    .details { display: grid; gap: 7px; }
+
+    .line {
+      display: grid;
+      grid-template-columns: 74px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .key {
+      padding-top: 2px;
+      color: var(--quiet);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.055em;
+      text-transform: uppercase;
+    }
+
+    .line.pacing .key { color: #8a8b00; }
+    .line.supplies .key { color: #4b7083; }
+    .line.transport .key { color: #587052; }
+    .line.supplies > span:last-child {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .pacing-value {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pacer-chip {
+      display: inline-block;
+      padding: 2px 6px 3px;
+      border: 1px solid rgba(0, 0, 0, 0.16);
+      border-radius: 2px;
+      background: var(--highlight);
+      color: var(--ink);
+      font-weight: 500;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .pacer-separator { color: var(--muted); }
+    .pacer-state { margin-left: 1px; color: var(--quiet); }
+    .notes {
+      color: var(--quiet);
+      font-size: 11px;
+    }
+
+    #error {
+      margin-top: 28px;
+      padding: 18px;
+      border: 1px solid var(--ink);
+      background: var(--highlight);
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 42px;
+      padding-top: 15px;
+      border-top: 1px solid var(--ink);
+      color: var(--quiet);
+      font-size: 10px;
+    }
+
+    @media (max-width: 680px) {
+      .page { width: min(calc(100% - 28px), var(--max)); padding-top: 24px; }
+      .masthead { grid-template-columns: 1fr; }
+      h1 { font-size: 52px; }
+      .print { justify-self: start; }
+      .source-note { flex-direction: column; gap: 5px; }
+      .stop { grid-template-columns: 34px minmax(0, 1fr); }
+      .stop-no { grid-row: 1 / 3; }
+      .time { grid-column: 2; border-left: 0; padding: 15px 0 3px; }
+      .time strong { display: inline; margin-right: 6px; }
+      .content { grid-column: 2; padding: 10px 0 17px; }
+      .line { grid-template-columns: 68px minmax(0, 1fr); }
+      footer { flex-direction: column; }
+    }
+
+    @media print {
+      :root { --paper: #fff; }
+      .page { width: 100%; padding: 0; }
+      .print { display: none; }
+      .stop { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">Aid-station assignments · working draft</p>
+        <h1>Crew plan</h1>
+        <p class="intro">
+          Pacer transitions, supply cars, and transport at each aid station.
+          Numbered pacers remain open assignments.
+        </p>
+      </div>
+      <button class="print" type="button" id="print">Print / save PDF</button>
+    </header>
+
+    <div class="source-note">
+      <span>Source: <b>crew_plan.csv</b></span>
+      <span>Pacer names are shown in yellow.</span>
+    </div>
+
+    <ol id="plan" aria-live="polite"></ol>
+    <div id="error" hidden></div>
+
+    <footer>
+      <span>HOMEDRED / CREW PLAN</span>
+      <span>CSV-backed draft</span>
+    </footer>
+  </main>
+
+  <script type="module">
+    function parseCsv(text) {
+      const rows = []
+      let row = []
+      let value = ''
+      let quoted = false
+
+      for (let i = 0; i < text.length; i += 1) {
+        const char = text[i]
+        const next = text[i + 1]
+        if (char === '"' && quoted && next === '"') {
+          value += '"'
+          i += 1
+        } else if (char === '"') {
+          quoted = !quoted
+        } else if (char === ',' && !quoted) {
+          row.push(value)
+          value = ''
+        } else if ((char === '\n' || char === '\r') && !quoted) {
+          if (char === '\r' && next === '\n') i += 1
+          row.push(value)
+          if (row.some(cell => cell.trim())) rows.push(row)
+          row = []
+          value = ''
+        } else {
+          value += char
+        }
+      }
+      row.push(value)
+      if (row.some(cell => cell.trim())) rows.push(row)
+      return rows
+    }
+
+    const clean = value => value?.trim() || ''
+    const optional = value => /^no need$/i.test(clean(value)) ? '' : clean(value)
+    const normalizeName = value => optional(value)
+      .replace(/\bMargaritta\b/g, 'Margarita')
+      .replace(/\bTennesse\b/g, 'Tennessee')
+    const normalizePacers = value => normalizeName(value).replace(/\b(\d+)\b/g, 'Pacer $1')
+    const normalizeNotes = value => normalizeName(value)
+      .replace(/\b(\d+)\b/g, 'Pacer $1')
+      .replace(/\band meet me\b/gi, 'and meets me')
+      .replace(/\bJonathan Brings\b/g, 'Jonathan brings')
+    function appendValue(element, value) {
+      for (const piece of value.split(/(Pacer \d+)/g)) {
+        if (!piece) continue
+        if (/^Pacer \d+$/.test(piece)) {
+          const mark = document.createElement('span')
+          mark.className = 'pacer-chip'
+          mark.textContent = piece
+          element.appendChild(mark)
+        } else {
+          element.append(document.createTextNode(piece))
+        }
+      }
+    }
+
+    function appendPacerSeparator(element, value, state = false) {
+      const separator = document.createElement('span')
+      separator.className = state ? 'pacer-state' : 'pacer-separator'
+      separator.textContent = value
+      element.appendChild(separator)
+    }
+
+    function appendPacerGroup(element, value) {
+      value.split(/\s+\+\s+/).forEach((name, index) => {
+        if (index) appendPacerSeparator(element, '+')
+        const pacer = document.createElement('span')
+        pacer.className = 'pacer-chip'
+        pacer.textContent = name
+        element.appendChild(pacer)
+      })
+    }
+
+    function pacingLine(stop) {
+      if (!stop.pacerIn && !stop.pacerOut) return null
+      const row = document.createElement('div')
+      row.className = 'line pacing'
+      const key = document.createElement('span')
+      key.className = 'key'
+      key.textContent = 'pacing'
+      const text = document.createElement('span')
+      text.className = 'pacing-value'
+
+      if (stop.segment === 1 && stop.pacerOut) {
+        appendPacerGroup(text, stop.pacerOut)
+        appendPacerSeparator(text, 'starts', true)
+      } else if (stop.pacerIn && stop.pacerOut && stop.pacerIn === stop.pacerOut) {
+        appendPacerGroup(text, stop.pacerOut)
+        appendPacerSeparator(text, 'continues', true)
+      } else if (stop.pacerIn && stop.pacerOut) {
+        appendPacerGroup(text, stop.pacerIn)
+        appendPacerSeparator(text, '→')
+        appendPacerGroup(text, stop.pacerOut)
+      } else if (stop.pacerOut) {
+        appendPacerGroup(text, stop.pacerOut)
+        appendPacerSeparator(text, 'starts', true)
+      } else {
+        appendPacerGroup(text, stop.pacerIn)
+        appendPacerSeparator(text, 'finishes', true)
+      }
+
+      row.append(key, text)
+      return row
+    }
+
+    function line(label, value, className = '') {
+      if (!value) return null
+      const row = document.createElement('div')
+      row.className = `line ${className}`
+      const key = document.createElement('span')
+      key.className = 'key'
+      key.textContent = label
+      const text = document.createElement('span')
+      appendValue(text, value)
+      row.append(key, text)
+      return row
+    }
+
+    function render(stops) {
+      const plan = document.querySelector('#plan')
+      for (const stop of stops) {
+        const item = document.createElement('li')
+        item.className = 'stop'
+        const number = document.createElement('span')
+        number.className = 'stop-no'
+        number.textContent = String(stop.segment).padStart(2, '0')
+        const time = document.createElement('span')
+        time.className = 'time'
+        const clock = document.createElement('strong')
+        clock.textContent = stop.eta
+        const day = document.createElement('span')
+        day.textContent = stop.day
+        time.append(clock, day)
+        const content = document.createElement('div')
+        content.className = 'content'
+        const head = document.createElement('div')
+        head.className = 'stop-head'
+        const name = document.createElement('h2')
+        name.textContent = stop.name
+        const mile = document.createElement('span')
+        mile.className = 'mile'
+        mile.textContent = `mile ${stop.mi.toFixed(1)}`
+        head.append(name, mile)
+        const details = document.createElement('div')
+        details.className = 'details'
+        details.append(...[
+          pacingLine(stop),
+          line('supplies', stop.supplies, 'supplies'),
+          line('transport', stop.transport, 'transport'),
+          line('notes', stop.notes, 'notes'),
+        ].filter(Boolean))
+        content.append(head, details)
+        item.append(number, time, content)
+        plan.appendChild(item)
+      }
+    }
+
+    try {
+      const response = await fetch('./crew_plan.csv')
+      if (!response.ok) throw new Error(`Could not load crew_plan.csv (${response.status})`)
+      const [headers, ...records] = parseCsv(await response.text())
+      const column = Object.fromEntries(headers.map((header, index) => [header.trim(), index]))
+      render(records.map(record => ({
+        segment: Number(record[column.SEGMENT]),
+        day: clean(record[column.DAY]),
+        eta: clean(record[column.ETA]).replace(/:(?=\s*[AP]M$)/i, ''),
+        mi: Number(record[column.MILE]),
+        name: clean(record[column['AID STATION']]),
+        pacerIn: normalizePacers(record[column['PACER IN']]),
+        pacerOut: normalizePacers(record[column['PACER OUT']]),
+        supplies: normalizeName(record[column['CAR SUPPLY']]),
+        transport: normalizeName(record[column.TRANSPORT]),
+        notes: normalizeNotes(record[column.NOTES]),
+      })))
+    } catch (error) {
+      const message = document.querySelector('#error')
+      message.hidden = false
+      message.textContent = `${error.message}. Serve the repository over HTTP rather than opening this file directly.`
+    }
+
+    document.querySelector('#print').addEventListener('click', () => window.print())
+  </script>
+</body>
+</html>
