@@ -321,8 +321,8 @@ try {
     bearing: 0,
     antialias: true,
     attributionControl: false,
-    // in the stacked touch layout one-finger swipes scroll the page; two fingers pan the map
-    cooperativeGestures: matchMedia('(pointer: coarse) and (max-width: 940px)').matches,
+    // Allow direct one-finger map gestures on mobile.
+    cooperativeGestures: false,
   })
   map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right')
   map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: 'imperial' }), 'bottom-right')
