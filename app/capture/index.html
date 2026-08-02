@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en" class="capture-loading">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f1f17c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Homedred Capture</title>
+  <style>html.capture-loading body { visibility: hidden; }</style>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      requestAnimationFrame(() => document.documentElement.classList.remove('capture-loading'))
+    }, { once: true })
+  </script>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/media-icon.svg" />
+</head>
+<body>
+  <header class="capture-header">
+    <a href="/" class="capture-brand" aria-label="Back to Homedred Miler">
+      <span>Homedred</span>
+      <span>Capture</span>
+    </a>
+    <span id="network-state" class="network-state">checking</span>
+  </header>
+
+  <main>
+    <section id="setup" class="setup" aria-labelledby="setup-title">
+      <p class="eyebrow">Before the day begins</p>
+      <h1 id="setup-title">Who is capturing?</h1>
+      <p class="setup-copy">
+        Your name is stored on this device. Every capture includes its exact GPS position and time.
+      </p>
+      <form id="name-form">
+        <label for="contributor-name">Name</label>
+        <input id="contributor-name" name="name" autocomplete="name" maxlength="60" required />
+        <button type="submit" class="primary">continue</button>
+      </form>
+    </section>
+
+    <section id="capture-app" hidden>
+      <section class="capture-intro">
+        <div>
+          <p class="eyebrow">Media field recorder</p>
+          <h1 id="hello">Capture the day.</h1>
+        </div>
+        <button id="change-name" type="button" class="text-action">change name</button>
+      </section>
+
+      <section class="location-panel" aria-live="polite">
+        <span id="location-dot" class="location-dot"></span>
+        <span>
+          <b id="location-title">Finding precise location…</b>
+          <small id="location-detail">Keep this screen open and allow Precise Location.</small>
+        </span>
+      </section>
+
+      <section class="capture-actions" aria-label="Capture media">
+        <button id="take-photo" type="button" class="capture-action" disabled>
+          <span class="action-kind">still</span>
+          <span class="action-name">Photo</span>
+          <span class="action-note">open live camera</span>
+        </button>
+        <button id="record-video" type="button" class="capture-action" disabled>
+          <span class="action-kind">motion</span>
+          <span class="action-name">Video</span>
+          <span class="action-note">record up to 10 seconds</span>
+        </button>
+        <button id="record-audio" type="button" class="capture-action" disabled>
+          <span class="action-kind">sound</span>
+          <span class="action-name">Voice memo</span>
+          <span class="action-note">record up to 2 minutes</span>
+        </button>
+      </section>
+
+      <p id="capture-help" class="capture-help">
+        Captures save on this phone first. They upload whenever this app is open and internet returns.
+      </p>
+
+      <section id="recorder" class="recorder" hidden aria-live="polite">
+        <video id="camera-preview" playsinline muted hidden></video>
+        <button id="switch-camera" type="button" class="camera-switch" hidden>
+          front camera
+        </button>
+        <div id="audio-visual" class="audio-visual" hidden>
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="recorder-status">
+          <b id="recorder-label">Recording</b>
+          <span id="recorder-time">00:00</span>
+        </div>
+        <button id="stop-recording" type="button" class="stop-action">stop and save</button>
+        <button id="cancel-recording" type="button" class="text-action">cancel</button>
+      </section>
+
+      <section class="queue-section" aria-labelledby="queue-title">
+        <div class="queue-head">
+          <div>
+            <p class="eyebrow">This device</p>
+            <h2 id="queue-title">Capture queue</h2>
+          </div>
+          <span id="queue-count">0 items</span>
+        </div>
+        <div class="queue-tools">
+          <button id="sync-all" type="button">sync all</button>
+          <button id="export-all" type="button">export backup</button>
+          <button id="clear-uploaded" type="button">clear uploaded</button>
+        </div>
+        <ol id="capture-list" class="capture-list"></ol>
+        <p id="empty-queue" class="empty-queue">Nothing captured on this device yet.</p>
+      </section>
+
+      <footer id="compact-queue-bar" hidden>
+        <button id="compact-queue-toggle" type="button" aria-expanded="false">
+          <span id="compact-queue-label">0 pending</span>
+          <span id="compact-queue-action">view queue</span>
+        </button>
+        <button id="compact-sync" type="button">sync now</button>
+      </footer>
+    </section>
+  </main>
+
+  <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
+  <input id="video-input" type="file" accept="video/*" capture="environment" hidden />
+  <div id="toast" class="toast" hidden role="status"></div>
+
+  <script type="module" src="/src/capture/main.js"></script>
+</body>
+</html>

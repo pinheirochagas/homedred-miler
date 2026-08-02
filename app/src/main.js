@@ -9,6 +9,7 @@ import { waypoints } from './waypoints.js'
 import { facilities } from './facilities.js'
 import { crewPlan } from './crew-plan.js'
 import { supplyGroups as defaultSupplyGroups } from './supplies.js'
+import { fetchPublishedMedia, mediaConfigured } from './media.js'
 import { resolveWindow, windowStatus, sunTimes, hhmm } from './sun.js'
 import waterFacilityIcon from './assets/facilities/facility-water.png'
 import bathroomFacilityIcon from './assets/facilities/facility-bathroom.png'
@@ -91,6 +92,10 @@ let relief = false
 let locating = false
 let userLocation = null
 const visibleFacilityTypes = new Set()
+let mediaItems = []
+let mediaLoaded = false
+let mediaLoading = false
+let mediaError = null
 
 // Grade-adjusted, even-effort pace model: 1,000 ft of climb ≈ 2 flat miles.
 const effortAt = mi => {
@@ -530,6 +535,169 @@ function updateUserLocationSource() {
   map?.getSource('user-location')?.setData(userLocationGeojson())
 }
 
+const mediaColor = type =>
+  type === 'audio' ? '#6d9fb3' : type === 'video' ? '#78b98a' : C.routeHighlight
+
+function mediaGeojson() {
+  return {
+    type: 'FeatureCollection',
+    features: mediaItems.map(item => ({
+      type: 'Feature',
+      properties: {
+        id: item.id,
+        mediaType: item.media_type,
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [item.longitude, item.latitude],
+      },
+    })),
+  }
+}
+
+function addMediaLayers() {
+  if (map.getSource('media-items')) return
+  map.addSource('media-items', { type: 'geojson', data: mediaGeojson() })
+  map.addLayer({
+    id: 'media-dots',
+    type: 'circle',
+    source: 'media-items',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 13, 6.5, 16, 8],
+      'circle-color': [
+        'match',
+        ['get', 'mediaType'],
+        'audio', '#6d9fb3',
+        'video', '#78b98a',
+        C.routeHighlight,
+      ],
+      'circle-stroke-width': 1.4,
+      'circle-stroke-color': C.paper,
+      'circle-emissive-strength': 1,
+    },
+  })
+  map.addLayer({
+    id: 'media-dot-cores',
+    type: 'circle',
+    source: 'media-items',
+    minzoom: 13,
+    paint: {
+      'circle-radius': 1.5,
+      'circle-color': C.ink,
+      'circle-emissive-strength': 1,
+    },
+  })
+}
+
+function updateMediaSource() {
+  map?.getSource('media-items')?.setData(mediaGeojson())
+}
+
+function mediaPreview(item, compact = false) {
+  const preview = document.createElement('div')
+  preview.className = `media-preview${compact ? ' compact' : ''}`
+  let media
+  if (item.media_type === 'photo') {
+    media = document.createElement('img')
+    media.alt = `Photo by ${item.contributor_name}`
+    media.loading = compact ? 'eager' : 'lazy'
+  } else if (item.media_type === 'video') {
+    media = document.createElement('video')
+    media.controls = true
+    media.playsInline = true
+    media.preload = 'metadata'
+  } else {
+    media = document.createElement('audio')
+    media.controls = true
+    media.preload = 'metadata'
+  }
+  media.src = item.url
+  preview.append(media)
+  return preview
+}
+
+function mediaMetaElement(item) {
+  const meta = document.createElement('div')
+  meta.className = 'media-popup-meta'
+  const title = document.createElement('b')
+  title.textContent = item.contributor_name
+  const when = document.createElement('span')
+  const captured = new Date(item.captured_at)
+  const mile = Number.isFinite(item.nearest_mile) ? `mile ${fmtMi(item.nearest_mile)}` : 'off course'
+  when.textContent = `${captured.toLocaleDateString('en-US', { weekday: 'short' })} ${hhmm(captured)} · ${mile}`
+  meta.append(title, when)
+  return meta
+}
+
+function openCaptureStudio() {
+  const studio = $('#capture-studio')
+  const frame = $('#capture-frame')
+  closeMediaViewer()
+  if (!frame.getAttribute('src')) frame.src = frame.dataset.src
+  studio.hidden = false
+  $('#capture-link').setAttribute('aria-expanded', 'true')
+  $('#capture-studio-close').focus()
+}
+
+function closeCaptureStudio() {
+  const studio = $('#capture-studio')
+  if (studio.hidden) return
+  $('#capture-frame').contentWindow?.postMessage({ type: 'homedred:capture-close' }, location.origin)
+  studio.hidden = true
+  $('#capture-link').setAttribute('aria-expanded', 'false')
+  $('#capture-link').focus()
+}
+
+function toggleCaptureStudio() {
+  if ($('#capture-studio').hidden) openCaptureStudio()
+  else closeCaptureStudio()
+}
+
+function openMediaViewer(item) {
+  const viewer = $('#media-viewer')
+  const content = $('#media-viewer-content')
+  const caption = $('#media-viewer-caption')
+  content.replaceChildren(mediaPreview(item))
+  caption.replaceChildren(mediaMetaElement(item))
+  viewer.hidden = false
+  document.body.classList.add('media-viewer-open')
+  $('#media-viewer-close').focus()
+}
+
+function closeMediaViewer() {
+  const viewer = $('#media-viewer')
+  if (viewer.hidden) return
+  viewer.hidden = true
+  $('#media-viewer-content').replaceChildren()
+  document.body.classList.remove('media-viewer-open')
+}
+
+function focusMedia(id, { fly = true, view = false } = {}) {
+  const item = mediaItems.find(candidate => candidate.id === id)
+  if (!item) return
+  document.querySelectorAll('.media-item').forEach(element =>
+    element.classList.toggle('sel', element.dataset.id === id))
+
+  if (map) {
+    const content = document.createElement('div')
+    content.className = 'media-popup'
+    content.append(mediaPreview(item, true), mediaMetaElement(item))
+    popup?.setLngLat([item.longitude, item.latitude]).setDOMContent(content).addTo(map)
+    if (fly) {
+      stopOrbit()
+      map.flyTo({
+        center: [item.longitude, item.latitude],
+        zoom: Math.max(map.getZoom(), 15),
+        pitch: 0,
+        bearing: 0,
+        duration: 1200,
+        essential: true,
+      })
+    }
+  }
+  if (view) openMediaViewer(item)
+}
+
 function addWaypointLayers() {
   map.addSource('wps', { type: 'geojson', data: wpGeojson })
   map.addSource('ghost', { type: 'geojson', data: EMPTY })
@@ -740,6 +908,7 @@ if (map) {
     } catch (error) {
       console.error(error)
     }
+    addMediaLayers()
   })
   map.once('load', () => {
     map.fitBounds(bbox, {
@@ -748,7 +917,33 @@ if (map) {
     })
   })
   popup = new mapboxgl.Popup({ className: 'wp-pop', offset: 16, maxWidth: '300px' })
+  map.on('click', 'media-dots', event => {
+    const id = event.features?.[0]?.properties?.id
+    if (id) focusMedia(id, { fly: false })
+  })
+  map.on('mouseenter', 'media-dots', () => (map.getCanvas().style.cursor = 'pointer'))
+  map.on('mouseleave', 'media-dots', () => (map.getCanvas().style.cursor = ''))
   map.on('mousedown', stopOrbit)
+}
+
+async function loadMediaItems() {
+  if (mediaLoading) return
+  mediaLoading = true
+  mediaError = null
+  if (filter === 'media') renderList()
+  try {
+    if (!mediaConfigured) throw new Error('Media archive is not configured for this deployment.')
+    mediaItems = await fetchPublishedMedia()
+    mediaLoaded = true
+  } catch (error) {
+    mediaError = error
+    mediaLoaded = true
+  } finally {
+    mediaLoading = false
+    updateMediaSource()
+    if (filter === 'media') renderList()
+    renderProfile()
+  }
 }
 
 function focusWaypoint(id, fromMap = false) {
@@ -947,6 +1142,8 @@ document.querySelectorAll('#filters button').forEach(b =>
     filter = b.dataset.f
     document.querySelectorAll('#filters button').forEach(x => x.classList.toggle('on', x === b))
     renderList()
+    renderProfile()
+    if (filter === 'media' && !mediaLoaded) loadMediaItems()
   }))
 
 function visible(w) {
@@ -960,12 +1157,14 @@ function renderList() {
   const ol = $('#wplist')
   const summary = $('#segment-summary')
   const suppliesSummary = $('#supplies-summary')
+  const mediaSummary = $('#media-summary')
   const scrollTop = renderedFilter === filter ? ol.scrollTop : 0
   renderedFilter = filter
   ol.innerHTML = ''
   suppliesSummary.hidden = true
+  mediaSummary.hidden = true
   $('#supplies-editor').hidden = true
-  $('#legend').hidden = filter === 'supplies' || filter === 'crew'
+  $('#legend').hidden = filter === 'supplies' || filter === 'crew' || filter === 'media'
   if (filter === 'crew') {
     summary.hidden = true
     renderCrewPlan(ol)
@@ -982,6 +1181,12 @@ function renderList() {
   if (filter === 'supplies') {
     renderSuppliesSummary(suppliesSummary)
     renderSupplies(ol, suppliesSummary)
+    ol.scrollTop = scrollTop
+    return
+  }
+  if (filter === 'media') {
+    renderMediaSummary(mediaSummary)
+    renderMediaList(ol)
     ol.scrollTop = scrollTop
     return
   }
@@ -1021,6 +1226,117 @@ function renderList() {
     ol.appendChild(li)
   })
   ol.scrollTop = scrollTop
+}
+
+function renderMediaSummary(summary) {
+  summary.hidden = false
+  summary.replaceChildren()
+
+  const copy = document.createElement('span')
+  const title = document.createElement('b')
+  const detail = document.createElement('small')
+  if (mediaLoading) {
+    title.textContent = 'Loading the day…'
+    detail.textContent = 'Photos, short videos, and voice memos'
+  } else if (mediaError) {
+    title.textContent = 'Media unavailable'
+    detail.textContent = mediaError.message
+  } else {
+    const contributors = new Set(mediaItems.map(item => item.contributor_name)).size
+    title.textContent = `${mediaItems.length} ${mediaItems.length === 1 ? 'capture' : 'captures'}`
+    detail.textContent = contributors
+      ? `${contributors} ${contributors === 1 ? 'contributor' : 'contributors'} · exact GPS and device time`
+      : 'The shared archive is empty.'
+  }
+  copy.append(title, detail)
+
+  const refresh = document.createElement('button')
+  refresh.type = 'button'
+  refresh.textContent = 'refresh'
+  refresh.disabled = mediaLoading
+  refresh.addEventListener('click', loadMediaItems)
+  summary.append(copy, refresh)
+}
+
+function mediaListThumb(item) {
+  if (item.media_type === 'photo') {
+    const image = document.createElement('img')
+    image.className = 'media-list-thumb'
+    image.src = item.url
+    image.alt = ''
+    image.loading = 'lazy'
+    return image
+  }
+  const tile = document.createElement('span')
+  tile.className = `media-list-thumb ${item.media_type}`
+  tile.textContent = item.media_type === 'video' ? '▶' : '≈'
+  return tile
+}
+
+function renderMediaList(ol) {
+  if (mediaLoading || mediaError || !mediaItems.length) {
+    const empty = document.createElement('li')
+    empty.className = 'media-empty'
+    empty.textContent = mediaLoading
+      ? 'Loading captures…'
+      : mediaError
+        ? 'The archive could not be loaded. Use refresh to try again.'
+        : 'No one has uploaded a capture yet.'
+    ol.append(empty)
+    return
+  }
+
+  let currentDay = ''
+  for (const item of mediaItems) {
+    const captured = new Date(item.captured_at)
+    const day = captured.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    })
+    if (day !== currentDay) {
+      currentDay = day
+      const heading = document.createElement('li')
+      heading.className = 'media-day'
+      heading.textContent = day
+      ol.append(heading)
+    }
+
+    const li = document.createElement('li')
+    li.className = 'media-item'
+    li.dataset.id = item.id
+    li.tabIndex = 0
+    li.setAttribute('role', 'button')
+    li.setAttribute('aria-label', `${item.media_type} by ${item.contributor_name}`)
+
+    const thumb = mediaListThumb(item)
+    const copy = document.createElement('span')
+    const name = document.createElement('b')
+    name.textContent = item.contributor_name
+    const meta = document.createElement('small')
+    const mile = Number.isFinite(item.nearest_mile) ? `mile ${fmtMi(item.nearest_mile)}` : 'off course'
+    meta.textContent = `${hhmm(captured)} · ${mile} · ${item.media_type}`
+    copy.append(name, meta)
+
+    const view = document.createElement('button')
+    view.type = 'button'
+    view.textContent = 'view'
+    view.addEventListener('click', event => {
+      event.stopPropagation()
+      focusMedia(item.id, { fly: false, view: true })
+    })
+
+    const focus = () => focusMedia(item.id)
+    li.addEventListener('click', focus)
+    li.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        focus()
+      }
+    })
+    li.append(thumb, copy, view)
+    ol.append(li)
+  }
 }
 
 function appendCrewValue(element, value) {
@@ -1645,6 +1961,28 @@ function renderProfile() {
     svg.appendChild(runner)
   }
 
+  // Shared captures use their GPS projection on the course profile.
+  if (filter === 'media') {
+    for (const item of mediaItems) {
+      const mile = Number(item.nearest_mile)
+      if (!Number.isFinite(mile)) continue
+      const px = x(mile)
+      const py = y(ptAt(mile).ele)
+      svg.appendChild(line(px, Math.max(padT, py - 12), px, py, mediaColor(item.media_type), 1.2))
+      const marker = document.createElementNS(NS, 'circle')
+      marker.setAttribute('cx', px)
+      marker.setAttribute('cy', py)
+      marker.setAttribute('r', 3.5)
+      marker.setAttribute('fill', mediaColor(item.media_type))
+      marker.setAttribute('stroke', C.paper)
+      marker.setAttribute('stroke-width', 1.4)
+      const title = document.createElementNS(NS, 'title')
+      title.textContent = `${item.media_type} · ${item.contributor_name} · mile ${fmtMi(mile)}`
+      marker.appendChild(title)
+      svg.appendChild(marker)
+    }
+  }
+
   // hover crosshair
   if (hoverMi != null && !dragging) {
     const px = x(hoverMi), py = y(ptAt(hoverMi).ele)
@@ -1779,12 +2117,23 @@ chart.addEventListener('pointerleave', () => {
 })
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    if (!$('#capture-studio').hidden) {
+      closeCaptureStudio()
+      return
+    }
+    closeMediaViewer()
     sel = null
     selectedSegmentKeys.clear()
     syncSelToMap()
     if (filter === 'segments') renderList()
     renderProfile()
   }
+})
+$('#capture-link').addEventListener('click', toggleCaptureStudio)
+$('#capture-studio-close').addEventListener('click', closeCaptureStudio)
+$('#media-viewer-close').addEventListener('click', closeMediaViewer)
+$('#media-viewer').addEventListener('click', event => {
+  if (event.target === event.currentTarget) closeMediaViewer()
 })
 
 function syncSelToMap() {
@@ -1866,3 +2215,4 @@ new ResizeObserver(() => renderProfile()).observe(chart)
 $('#totals').textContent =
   `${course.totalMi} mi · +${fmtFt(course.gainFt)} ft · high ${fmtFt(course.maxEleFt)} ft`
 refreshPlan()
+loadMediaItems()

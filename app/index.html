@@ -48,6 +48,23 @@
       <p><span class="motivation-lead">FEW</span> places in the world can accommodate my wildest ideas. This adventure is a celebration of this city and the gentle mountains that surround us. It's also an opportunity to <strong class="ego">dissolve my ego</strong> as I prepare for parenthood and to introduce my future child to my favorite trails, all with the support and company of my incredible community.</p>
     </section>
 
+    <button id="capture-link" type="button" aria-expanded="false" aria-controls="capture-studio">
+      <span>Record the day</span>
+      <span>open camera · video · audio</span>
+    </button>
+    <section id="capture-studio" hidden aria-label="Media field recorder">
+      <header class="capture-studio-head">
+        <span><b>Homedred</b> field recorder</span>
+        <button id="capture-studio-close" type="button">close</button>
+      </header>
+      <iframe
+        id="capture-frame"
+        data-src="/capture/?embedded=1&compact=1"
+        title="Homedred media field recorder"
+        allow="camera; microphone; geolocation"
+      ></iframe>
+    </section>
+
     <section id="plan">
       <div class="plan-head">
         <span class="lbl">Crew plan</span>
@@ -74,10 +91,12 @@
       <button data-f="gated">gated</button>
       <button data-f="segments">segments</button>
       <button data-f="supplies">supplies</button>
+      <button data-f="media">media</button>
     </div>
 
     <div id="segment-summary" hidden aria-live="polite"></div>
     <div id="supplies-summary" hidden aria-live="polite"></div>
+    <div id="media-summary" hidden aria-live="polite"></div>
     <form id="supplies-editor" aria-label="Add supply item" hidden>
       <input id="supply-name" type="text" maxlength="80" placeholder="new item" autocomplete="off" required />
       <select id="supply-category" aria-label="Supply category"></select>
@@ -100,6 +119,12 @@
     </div>
     <div id="pchart"></div>
   </section>
+
+  <div id="media-viewer" hidden role="dialog" aria-modal="true" aria-label="Media viewer">
+    <button id="media-viewer-close" type="button">close</button>
+    <div id="media-viewer-content"></div>
+    <div id="media-viewer-caption"></div>
+  </div>
 
   <div id="err" hidden></div>
 

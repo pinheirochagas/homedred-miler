@@ -18,6 +18,23 @@ public `pk.` token is exposed to the browser; `MAPBOX_SECRET` stays local
 (see `app/vite.config.js` — `envPrefix` is deliberately `MAPBOX_TOKEN`).
 `tools/mint_public_token.py` can re-mint the pk token from the secret one.
 
+The media archive also needs the browser-safe values
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; copy
+`.env.example` when setting up a new environment.
+
+## Media capture
+
+Open `/capture/` on iPhone or Android to save GPS-tagged photos,
+10-second videos, and two-minute voice memos. Captures are written to
+IndexedDB first, so recording works without signal. The queue syncs to
+Supabase when the page is open and connectivity returns, and can also be
+exported as a ZIP with a JSON metadata manifest.
+
+The main dashboard's `media` tab reads the shared archive and places each
+capture at its exact location on the map and nearest mile on the elevation
+profile. Supabase schema, storage limits, and row-level security policies
+live in `supabase/migrations/`.
+
 ## Using it
 
 - **Map** — drag/rotate freely. `satellite` imagery toggle, `relief`
