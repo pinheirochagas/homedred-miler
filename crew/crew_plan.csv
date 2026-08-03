@@ -1,16 +1,16 @@
-SEGMENT,DAY,ETA,MILE,AID STATION,PACER IN,PACER OUT,CAR SUPPLY,TRANSPORT,NOTES
-1,Sat,10:00: AM,0,Start — Golden Gate Park,1,1,no need,no need,
-2,Sat,10:50: AM,4.1,GGB south · Welcome Center,1,1,no need,no need,
-3,Sat,11:11: AM,5.9,GGB north · Vista Point,Jim + 1,Jim + 1,no need,no need,
-4,Sat,12:18: PM,10.8,Rodeo Beach,Jim,Jim,Stef + Rodeo,Stef + Rodeo,
-5,Sat,2:06: PM,17.2,Muir Beach,Jim,2,Stef + Rodeo,Stef + Rodeo,
-6,Sat,3:41: PM,22.9,Pantoll Ranger Station,2,2,Jonathan,no need,
-7,Sat,4:27: PM,26.9,Stinson Beach,2,Jonathan,Jonathan,no need,
-8,Sat,8:30: PM,43.5,Bolinas Ridge Trailhead,Jonathan,Andrey,Max,Max + Doug,Max drops Andrey from his home - Doug drives Jonathan back to Stinson
-9,Sat,9:38: PM,49.5,Leo T. Cronin roadside,Andrey,Andrey,Max,Max,
-10,Sun,1:45: AM,65,Bolinas Rd × Sky Oaks Rd,Andrey,3,Doug,Doug,Doug drives Andrey back to his home 
-11,Sun,4:47: AM,76.1,Mt Tam East Peak,3,3,no need,no need,
-12,Sun,5:39: AM,80.5,Mountain Home Inn,3,Brian,Jonathan,no need,Brian drives to Tennessee Valley and meet me at Mountain Home Inn. Jonathan Brings 3 to Tennesse Valley for Brian to give them a ride home
-13,Sun,7:31: AM,88.9,Tennessee Valley,Brian,Margaritta,Jonathan,no need,Margaritta drives to Tennessee Valley
-14,Sun,8:48: AM,94.1,GGB north · return,Margaritta,4,no need,Stef + Rodeo,Jonathan brings Margaritta back to her car at Tennessee Valley
-15,Sun,9:08: AM,95.9,GGB south · return,4,Stef + Rodeo,no need,Stef + Rodeo,
+SEGMENT,AID STATION,PACER IN,PACER OUT,CAR SUPPLY,TRANSPORT,CONFIRM,NOTES,Suggestions,Pacers,Notes
+1,Start — Golden Gate Park,Jojo,Jojo,n/a,n/a,,Jojo meets at the Rose Garden,1,Jojo ,I can pick you up and Stef can drop you off
+2,GGB south · Welcome Center,Jojo,Jim + Jojo,n/a,n/a,,Jim meets us on the GGB Welcome Center,2,Trill + Sara,"Trill + Sara, you could do out-and-back from Muir Beach."
+3,GGB north · Vista Point,Jim + Jojo,Jim + Jojo,n/a,n/a,,,3,Anna + Eliza,"Since you might be with Max, this could be handy. Doug could bring you to TV and Brian could give you a ride home"
+4,Rodeo Beach,Jim + Jojo,Jim + Jojo,Stef,Stef,,Stef brings Rodeo to Rodeo Beach,3,Max + Doug,And the girls could drive the cars
+5,Muir Beach,Jim + Jojo,Trill + Sara,Stef,Stef,,Stef drives Jojo and Jim back home. Trill + Sara out-and-back from Muir Beach,3,Robby,Will need to coordinate your ride there 
+6,Pantoll Ranger Station,Trill + Sara,Trill + Sara,Jonathan,n/a,,,4,Mathilde + Nick,Stef can coordinate the rides
+7,Stinson Beach,Trill + Sara,Jonathan,Jonathan,n/a,,Jonathan drives to Stinson Beach,Additional suggestions,,
+8,Bolinas Ridge Trailhead,Jonathan,Andrey,Doug,Doug,,Doug drops Andrey from his home - X drives Jonathan back to Stinson,"Mathilde, maybe you can join Margaritta for the final strech, after Robin's family is gone?",,
+9,Leo T. Cronin roadside,Andrey,Andrey,Doug,Doug,,,"Nick, maybe you could also join in the end, we can figure out a ride. ",,
+10,Bolinas Rd × Sky Oaks Rd,Andrey,3,Doug,Doug,,Doug drives Andrey back home ,,,
+11,Mt Tam East Peak,3,Max + Anna + Eliza,n/a,n/a,,,,,
+12,Mountain Home Inn,Max + Anna + Eliza,Brian,Jonathan,n/a,,Brian drives to Tennessee Valley and meet me at Mountain Home Inn.,,,
+13,Tennessee Valley,Brian,Margaritta,Jonathan,n/a,,Margaritta drives to Tennessee Valley,,,
+14,GGB north · return,Margaritta,n/a,Jonathan,Jonathan,,Jonathan brings Margaritta back to her car at Tennessee Valley.,,,
+15,GGB south · return,n/a,Angie,Stef,Stef,,Angie + Stef + Rodeo meet on the south bridge for the home strech,,,

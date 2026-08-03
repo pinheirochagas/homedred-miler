@@ -1,4 +1,5 @@
 import crewPlanCsv from '../../crew/crew_plan.csv?raw'
+import { waypoints } from './waypoints.js'
 
 function parseCsv(text) {
   const rows = []
@@ -35,7 +36,7 @@ function parseCsv(text) {
 }
 
 const clean = value => value?.trim() || ''
-const optional = value => /^no need$/i.test(clean(value)) ? '' : clean(value)
+const optional = value => /^(?:no need|n\/a)$/i.test(clean(value)) ? '' : clean(value)
 const normalizeName = value => optional(value)
   .replace(/\bMargaritta\b/g, 'Margarita')
   .replace(/\bTennesse\b/g, 'Tennessee')
@@ -48,16 +49,24 @@ const normalizeNotes = value => normalizeName(value)
 
 const [headers, ...records] = parseCsv(crewPlanCsv)
 const column = Object.fromEntries(headers.map((header, index) => [header.trim(), index]))
+const crewWaypoints = waypoints.filter(waypoint => waypoint.crew)
+const cell = (record, header) => {
+  const index = column[header]
+  return index == null ? '' : record[index]
+}
 
-export const crewPlan = records.map(record => ({
-  segment: Number(record[column.SEGMENT]),
-  sourceDay: clean(record[column.DAY]),
-  sourceEta: clean(record[column.ETA]).replace(/:(?=\s*[AP]M$)/i, ''),
-  mi: Number(record[column.MILE]),
-  name: clean(record[column['AID STATION']]),
-  pacerIn: normalizePacers(record[column['PACER IN']]),
-  pacerOut: normalizePacers(record[column['PACER OUT']]),
-  supplies: normalizeName(record[column['CAR SUPPLY']]),
-  transport: normalizeName(record[column.TRANSPORT]),
-  notes: normalizeNotes(record[column.NOTES]),
-}))
+export const crewPlan = records.map(record => {
+  const segment = Number(cell(record, 'SEGMENT'))
+  const waypoint = crewWaypoints[segment - 1]
+  if (!waypoint) throw new Error(`Crew plan segment ${segment} has no matching waypoint`)
+  return {
+    segment,
+    mi: waypoint.mi,
+    name: clean(cell(record, 'AID STATION')) || waypoint.name,
+    pacerIn: normalizePacers(cell(record, 'PACER IN')),
+    pacerOut: normalizePacers(cell(record, 'PACER OUT')),
+    supplies: normalizeName(cell(record, 'CAR SUPPLY')),
+    transport: normalizeName(cell(record, 'TRANSPORT')),
+    notes: normalizeNotes(cell(record, 'NOTES')),
+  }
+})
