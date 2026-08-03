@@ -1044,13 +1044,10 @@ function appendPacerSeparator(element, value, state = false) {
 }
 
 function appendPacerGroup(element, value) {
-  value.split(/\s+\+\s+/).forEach((name, index) => {
-    if (index) appendPacerSeparator(element, '+')
-    const pacer = document.createElement('span')
-    pacer.className = 'crew-pacer-chip'
-    pacer.textContent = name
-    element.appendChild(pacer)
-  })
+  const pacer = document.createElement('span')
+  pacer.className = 'crew-pacer-chip'
+  pacer.textContent = value
+  element.appendChild(pacer)
 }
 
 function crewPacingLine(stop) {
