@@ -3,8 +3,9 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import './style.css'
 import {
   course, ptAt, statsBetween, gradeAt, fullLine, sliceLine,
-  idxAt, lat, lon, dist, ele, cgain, fmtFt, fmtMi,
+  idxAt, lat, lon, dist, ele, fmtFt, fmtMi,
 } from './data.js'
+import { elapsedAt, PACE_BASE_SECS } from './pace.js'
 import { waypoints } from './waypoints.js'
 import { facilities } from './facilities.js'
 import { crewPlan } from './crew-plan.js'
@@ -92,14 +93,11 @@ let locating = false
 let userLocation = null
 const visibleFacilityTypes = new Set()
 
-// Grade-adjusted, even-effort pace model: 1,000 ft of climb ≈ 2 flat miles.
-const effortAt = mi => {
-  const i = idxAt(mi)
-  return dist(i) + cgain(i) / 500
-}
-const TOTAL_EFFORT = effortAt(course.totalMi)
+// Ultrapacer-based pace model: per-mile splits scaled to the target finish time.
+// elapsedAt(mi) returns seconds elapsed at that mile in the 24 h base plan;
+// scaling by (plan.hours / 24) adjusts proportionally for any target finish time.
 const etaAt = mi =>
-  new Date(plan.start.getTime() + plan.hours * 3600000 * (effortAt(mi) / TOTAL_EFFORT))
+  new Date(plan.start.getTime() + plan.hours * 3600000 * (elapsedAt(mi) / PACE_BASE_SECS))
 
 const crewPoints = waypoints.filter(w => w.crew)
 const crewSegments = crewPoints.slice(0, -1).map((from, i) => {
