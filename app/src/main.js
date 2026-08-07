@@ -1,6 +1,6 @@
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import './style.css'
+import './style.css?v=20260806-audio-iphone6'
 import {
   course, ptAt, statsBetween, gradeAt, fullLine, sliceLine,
   idxAt, lat, lon, dist, ele, fmtFt, fmtMi,
@@ -8,6 +8,7 @@ import {
 import { elapsedAt, PACE_BASE_SECS } from './pace.js'
 import { waypoints } from './waypoints.js'
 import { facilities } from './facilities.js'
+import { mediaItems } from './media.js?v=20260806-audio-iphone6'
 import { crewPlan } from './crew-plan.js'
 import { supplyGroups as defaultSupplyGroups } from './supplies.js'
 import { resolveWindow, windowStatus, sunTimes, hhmm } from './sun.js'
@@ -91,6 +92,10 @@ let satellite = false
 let relief = false
 let locating = false
 let userLocation = null
+let mediaVisible = true
+let selectedMediaId = null
+let repositionMediaPopup = () => {}
+const mediaWidths = new Map()
 const visibleFacilityTypes = new Set()
 
 // Ultrapacer-based pace model: per-mile splits scaled to the target finish time.
@@ -128,6 +133,20 @@ function loadFacilityIconImages() {
   return facilityIconImagesPromise
 }
 
+let mediaImagesPromise = null
+function loadMediaImages() {
+  if (mediaImagesPromise) return mediaImagesPromise
+  mediaImagesPromise = Promise.all(
+    routeMedia.map(item => new Promise((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve([item.id, image])
+      image.onerror = () => reject(new Error(`Could not load media image ${item.id}`))
+      image.src = item.thumbnailSrc || item.src
+    })),
+  ).then(Object.fromEntries)
+  return mediaImagesPromise
+}
+
 let locationRunnerImagePromise = null
 function loadLocationRunnerImage() {
   if (locationRunnerImagePromise) return locationRunnerImagePromise
@@ -148,6 +167,28 @@ const geoDistance = (aLat, aLon, bLat, bLon) => {
     Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLon / 2) ** 2
   return 6371000 * 2 * Math.asin(Math.sqrt(q))
 }
+
+const routeMedia = mediaItems.map(item => {
+  let routeIndex = 0
+  let offsetM = Infinity
+  for (let i = 0; i < course.n; i++) {
+    const meters = geoDistance(item.lat, item.lon, lat(i), lon(i))
+    if (meters < offsetM) {
+      routeIndex = i
+      offsetM = meters
+    }
+  }
+  return {
+    ...item,
+    routeIndex,
+    mi: dist(routeIndex),
+    routeLat: lat(routeIndex),
+    routeLon: lon(routeIndex),
+    offsetM,
+  }
+})
+const mediaById = new Map(routeMedia.map(item => [item.id, item]))
+const mediaImageKey = id => `media-${id}`
 
 function expectedCourseMile(timeMs) {
   const start = plan.start.getTime()
@@ -672,9 +713,545 @@ function updateFacilitySource() {
   map?.getSource('facilities')?.setData(facilityGeojson())
 }
 
+function mediaGeojson() {
+  return {
+    type: 'FeatureCollection',
+    features: mediaVisible
+      ? routeMedia.map(item => ({
+          type: 'Feature',
+          id: item.id,
+          properties: { id: item.id, icon: mediaImageKey(item.id) },
+          geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
+        }))
+      : [],
+  }
+}
+
+function mediaConnectorGeojson() {
+  return {
+    type: 'FeatureCollection',
+    features: mediaVisible
+      ? routeMedia
+          .filter(item => item.offsetM > 8)
+          .map(item => ({
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: [[item.routeLon, item.routeLat], [item.lon, item.lat]],
+            },
+          }))
+      : [],
+  }
+}
+
+function mediaBadge(image, type) {
+  const width = 92
+  const height = 112
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(width / 2, 92)
+  ctx.lineTo(width / 2, 108)
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 8
+  ctx.stroke()
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.roundRect(6, 6, 80, 92, 4)
+  ctx.fillStyle = '#ffffff'
+  ctx.fill()
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  const x = 12
+  const y = 12
+  const w = 68
+  const h = 80
+  ctx.save()
+  ctx.beginPath()
+  ctx.roundRect(x, y, w, h, 2)
+  ctx.clip()
+  const scale = Math.max(w / image.width, h / image.height)
+  const imageWidth = image.width * scale
+  const imageHeight = image.height * scale
+  ctx.drawImage(
+    image,
+    x + (w - imageWidth) / 2,
+    y + (h - imageHeight) / 2,
+    imageWidth,
+    imageHeight,
+  )
+  ctx.restore()
+
+  if (type === 'video') {
+    ctx.beginPath()
+    ctx.arc(width / 2, 52, 14, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.fill()
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(width / 2 - 4, 44)
+    ctx.lineTo(width / 2 + 7, 52)
+    ctx.lineTo(width / 2 - 4, 60)
+    ctx.closePath()
+    ctx.fillStyle = '#000000'
+    ctx.fill()
+  } else if (type === 'audio') {
+    ctx.beginPath()
+    ctx.arc(width / 2, 52, 14, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.fill()
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 2.5
+    for (const [dx, halfHeight] of [[-6, 4], [-2, 8], [2, 6], [6, 3]]) {
+      ctx.beginPath()
+      ctx.moveTo(width / 2 + dx, 52 - halfHeight)
+      ctx.lineTo(width / 2 + dx, 52 + halfHeight)
+      ctx.stroke()
+    }
+  }
+
+  return ctx.getImageData(0, 0, width, height)
+}
+
+async function addMediaLayers() {
+  const images = await loadMediaImages()
+  for (const item of routeMedia) {
+    const key = mediaImageKey(item.id)
+    if (!map.hasImage(key)) map.addImage(key, mediaBadge(images[item.id], item.type), { pixelRatio: 2 })
+  }
+
+  map.addSource('media-connectors', { type: 'geojson', data: mediaConnectorGeojson() })
+  map.addLayer({
+    id: 'media-connectors-case',
+    type: 'line',
+    source: 'media-connectors',
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': 3,
+      'line-opacity': 0.8,
+    },
+  })
+  map.addLayer({
+    id: 'media-connectors',
+    type: 'line',
+    source: 'media-connectors',
+    paint: {
+      'line-color': '#000000',
+      'line-width': 1,
+      'line-opacity': 0.55,
+      'line-dasharray': [2, 2],
+    },
+  })
+  map.addSource('media', { type: 'geojson', data: mediaGeojson() })
+  map.addLayer({
+    id: 'media-icons',
+    type: 'symbol',
+    source: 'media',
+    layout: {
+      'icon-image': ['get', 'icon'],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.68, 11, 0.82, 13, 1],
+      'icon-anchor': 'bottom',
+      'icon-offset': [0, -2],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    paint: { 'icon-emissive-strength': 1 },
+  })
+
+  map.on('click', 'media-icons', e => {
+    const id = e.features?.[0]?.properties?.id
+    if (id) focusMedia(id, true)
+  })
+  map.on('mouseenter', 'media-icons', () => (map.getCanvas().style.cursor = 'pointer'))
+  map.on('mouseleave', 'media-icons', () => (map.getCanvas().style.cursor = ''))
+}
+
+function updateMediaSources() {
+  map?.getSource('media')?.setData(mediaGeojson())
+  map?.getSource('media-connectors')?.setData(mediaConnectorGeojson())
+}
+
+const mediaTimestamp = value => new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'America/Los_Angeles',
+  timeZoneName: 'short',
+}).format(new Date(value))
+
+function mediaPopupContent(item) {
+  const card = document.createElement('article')
+  card.className = 'media-card expanded'
+
+  const mediaFrame = document.createElement('div')
+  mediaFrame.className = 'media-card-image'
+  let media
+  if (item.type === 'audio') {
+    mediaFrame.classList.add('media-card-audio')
+    const waveformTrack = document.createElement('div')
+    waveformTrack.className = 'media-audio-waveform'
+    waveformTrack.setAttribute('role', 'slider')
+    waveformTrack.setAttribute('tabindex', '0')
+    waveformTrack.setAttribute('aria-label', 'Audio position')
+    waveformTrack.setAttribute('aria-valuemin', '0')
+    waveformTrack.title = 'Drag to seek'
+    const waveform = document.createElement('img')
+    waveform.className = 'media-audio-bars media-audio-bars-muted'
+    waveform.src = item.thumbnailSrc
+    waveform.alt = item.alt
+    const playedWaveform = document.createElement('img')
+    playedWaveform.className = 'media-audio-bars media-audio-bars-played'
+    playedWaveform.src = item.thumbnailSrc
+    playedWaveform.alt = ''
+    playedWaveform.setAttribute('aria-hidden', 'true')
+    const playhead = document.createElement('span')
+    playhead.className = 'media-audio-playhead'
+    playhead.setAttribute('aria-hidden', 'true')
+    const scale = document.createElement('div')
+    scale.className = 'media-audio-scale'
+    const scaleStart = document.createElement('span')
+    scaleStart.textContent = '0:00'
+    const scaleEnd = document.createElement('span')
+    scaleEnd.textContent = '–:––'
+    scale.append(scaleStart, scaleEnd)
+    waveformTrack.append(waveform, playedWaveform, playhead, scale)
+
+    const elapsed = document.createElement('output')
+    elapsed.className = 'media-audio-time'
+    elapsed.setAttribute('aria-label', 'Elapsed time')
+    elapsed.textContent = '00:00.00'
+
+    const controls = document.createElement('div')
+    controls.className = 'media-audio-controls'
+    const skipButton = (direction, label) => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `media-audio-skip ${direction}`
+      button.setAttribute('aria-label', label)
+      const transform = direction === 'forward' ? ' transform="translate(40 0) scale(-1 1)"' : ''
+      button.innerHTML = `
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <g${transform}>
+            <path d="M12 9A14 14 0 1 0 31 14" />
+            <path d="M12 3v8h8" />
+          </g>
+          <text x="20" y="25">15</text>
+        </svg>`
+      return button
+    }
+    const skipBack = skipButton('back', 'Back 15 seconds')
+    const playButton = document.createElement('button')
+    playButton.type = 'button'
+    playButton.className = 'media-audio-toggle'
+    playButton.setAttribute('aria-label', 'Play')
+    playButton.dataset.playing = 'false'
+    const playIcon = document.createElement('span')
+    playIcon.setAttribute('aria-hidden', 'true')
+    playButton.appendChild(playIcon)
+    const skipForward = skipButton('forward', 'Forward 15 seconds')
+    controls.append(skipBack, playButton, skipForward)
+
+    media = document.createElement('audio')
+    media.src = item.src
+    media.preload = 'metadata'
+    media.setAttribute('aria-label', item.title)
+
+    let playbackTimer = null
+    let scrubbing = false
+    const shortTime = value => {
+      const seconds = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0))
+      return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+    }
+    const preciseTime = value => {
+      const centiseconds = Math.max(0, Math.floor((Number.isFinite(value) ? value : 0) * 100))
+      const minutes = Math.floor(centiseconds / 6000)
+      const seconds = Math.floor((centiseconds % 6000) / 100)
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds % 100).padStart(2, '0')}`
+    }
+    const updatePlayhead = () => {
+      const duration = Number.isFinite(media.duration) ? media.duration : 0
+      const progress = duration ? Math.min(1, Math.max(0, media.currentTime / duration)) : 0
+      const playheadX = 4 + progress * Math.max(0, waveformTrack.clientWidth - 8)
+      playhead.style.transform = `translate3d(${playheadX}px, 0, 0)`
+      playedWaveform.style.clipPath = `inset(0 ${100 - progress * 100}% 0 0)`
+      const time = preciseTime(media.currentTime)
+      if (elapsed.textContent !== time) elapsed.textContent = time
+      waveformTrack.setAttribute('aria-valuemax', String(Math.round(duration)))
+      waveformTrack.setAttribute('aria-valuenow', String(Math.round(media.currentTime)))
+      waveformTrack.setAttribute('aria-valuetext', `${shortTime(media.currentTime)} of ${shortTime(duration)}`)
+    }
+    const stopPlaybackTimer = () => {
+      if (playbackTimer == null) return
+      clearInterval(playbackTimer)
+      playbackTimer = null
+    }
+    const startPlayhead = () => {
+      playButton.dataset.playing = 'true'
+      playButton.setAttribute('aria-label', 'Pause')
+      updatePlayhead()
+      stopPlaybackTimer()
+      playbackTimer = setInterval(() => {
+        if (!media.isConnected || media.paused || media.ended) {
+          stopPlaybackTimer()
+          return
+        }
+        updatePlayhead()
+      }, 25)
+    }
+    const stopPlayhead = () => {
+      stopPlaybackTimer()
+      playButton.dataset.playing = 'false'
+      playButton.setAttribute('aria-label', 'Play')
+      updatePlayhead()
+    }
+    const seek = clientX => {
+      if (!Number.isFinite(media.duration) || media.duration <= 0) return
+      const bounds = waveformTrack.getBoundingClientRect()
+      const progress = Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width))
+      media.currentTime = progress * media.duration
+      updatePlayhead()
+    }
+    waveformTrack.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      scrubbing = true
+      try {
+        waveformTrack.setPointerCapture(event.pointerId)
+      } catch {
+        // Pointer capture is optional in embedded browsers.
+      }
+      seek(event.clientX)
+    })
+    waveformTrack.addEventListener('pointermove', event => {
+      if (!scrubbing) return
+      event.preventDefault()
+      event.stopPropagation()
+      seek(event.clientX)
+    })
+    const finishScrubbing = event => {
+      if (!scrubbing) return
+      scrubbing = false
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.type === 'pointerup') {
+        seek(event.clientX)
+      }
+    }
+    waveformTrack.addEventListener('pointerup', finishScrubbing)
+    waveformTrack.addEventListener('pointercancel', finishScrubbing)
+    waveformTrack.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+      event.preventDefault()
+      event.stopPropagation()
+      const direction = event.key === 'ArrowRight' ? 1 : -1
+      media.currentTime = Math.min(media.duration || 0, Math.max(0, media.currentTime + direction))
+      updatePlayhead()
+    })
+    playButton.addEventListener('click', event => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (media.paused || media.ended) {
+        if (media.ended) media.currentTime = 0
+        media.play().catch(() => stopPlayhead())
+      } else {
+        media.pause()
+      }
+    })
+    skipBack.addEventListener('click', event => {
+      event.preventDefault()
+      event.stopPropagation()
+      media.currentTime = Math.max(0, media.currentTime - 15)
+      updatePlayhead()
+    })
+    skipForward.addEventListener('click', event => {
+      event.preventDefault()
+      event.stopPropagation()
+      media.currentTime = Math.min(media.duration || 0, media.currentTime + 15)
+      updatePlayhead()
+    })
+    media.addEventListener('loadedmetadata', () => {
+      scaleEnd.textContent = shortTime(media.duration)
+      updatePlayhead()
+    })
+    media.addEventListener('timeupdate', updatePlayhead)
+    media.addEventListener('seeking', updatePlayhead)
+    media.addEventListener('seeked', updatePlayhead)
+    media.addEventListener('play', startPlayhead)
+    media.addEventListener('pause', stopPlayhead)
+    media.addEventListener('ended', stopPlayhead)
+    card.addEventListener('mediaresize', updatePlayhead)
+    mediaFrame.append(waveformTrack, elapsed, controls, media)
+  } else if (item.type === 'video') {
+    media = document.createElement('video')
+    media.src = item.src
+    media.poster = item.thumbnailSrc
+    media.controls = true
+    media.playsInline = true
+    media.preload = 'metadata'
+    media.setAttribute('aria-label', item.alt)
+  } else {
+    media = document.createElement('img')
+    media.src = item.src
+    media.alt = item.alt
+  }
+  if (item.type !== 'audio') {
+    mediaFrame.appendChild(media)
+  }
+
+  const mediaDimensions = () => ({
+    width: media.videoWidth || media.naturalWidth || item.width || 4,
+    height: media.videoHeight || media.naturalHeight || item.height || 3,
+  })
+  const widthRange = () => {
+    const { width, height } = mediaDimensions()
+    const ratio = width / height
+    const max = Math.max(1, Math.min(480, window.innerWidth - 24, (window.innerHeight - 86) * ratio))
+    return { min: Math.min(96, max), max }
+  }
+  const applyWidth = (value, remember = false) => {
+    const { min, max } = widthRange()
+    const width = Math.min(max, Math.max(min, value))
+    card.style.width = `${Math.floor(width)}px`
+    if (remember) mediaWidths.set(item.id, width)
+    card.dispatchEvent(new CustomEvent('mediaresize'))
+  }
+  const sizeMedia = () => {
+    const { width, height } = mediaDimensions()
+    mediaFrame.style.aspectRatio = `${width} / ${height}`
+    const preferredWidth = mediaWidths.get(item.id) ?? 200
+    applyWidth(preferredWidth)
+  }
+  media.addEventListener(item.type === 'photo' ? 'load' : 'loadedmetadata', sizeMedia, { once: true })
+  sizeMedia()
+
+  const copy = document.createElement('div')
+  copy.className = 'media-card-copy'
+  const title = document.createElement('div')
+  title.className = 'media-card-title'
+  title.textContent = item.title
+  const meta = document.createElement('div')
+  meta.className = 'media-card-meta'
+  meta.textContent = [
+    `mile ${fmtMi(item.mi)}`,
+    item.capturedAt ? mediaTimestamp(item.capturedAt) : null,
+  ].filter(Boolean).join(' · ')
+  copy.append(title, meta)
+
+  const resizeHandle = document.createElement('button')
+  resizeHandle.type = 'button'
+  resizeHandle.className = 'media-card-resize'
+  resizeHandle.setAttribute('aria-label', 'Resize media')
+  resizeHandle.title = 'Drag to resize'
+  resizeHandle.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    const startX = event.clientX
+    const startWidth = card.getBoundingClientRect().width
+    resizeHandle.classList.add('dragging')
+    try {
+      resizeHandle.setPointerCapture(event.pointerId)
+    } catch {
+      // Pointer capture can be unavailable in embedded browsers; resizing still works.
+    }
+
+    const move = moveEvent => {
+      moveEvent.preventDefault()
+      applyWidth(startWidth + moveEvent.clientX - startX, true)
+    }
+    const finish = () => {
+      resizeHandle.classList.remove('dragging')
+      resizeHandle.removeEventListener('pointermove', move)
+      resizeHandle.removeEventListener('pointerup', finish)
+      resizeHandle.removeEventListener('pointercancel', finish)
+    }
+    resizeHandle.addEventListener('pointermove', move)
+    resizeHandle.addEventListener('pointerup', finish)
+    resizeHandle.addEventListener('pointercancel', finish)
+  })
+  resizeHandle.addEventListener('keydown', event => {
+    const direction = ['ArrowRight', 'ArrowUp'].includes(event.key)
+      ? 1
+      : ['ArrowLeft', 'ArrowDown'].includes(event.key) ? -1 : 0
+    if (!direction) return
+    event.preventDefault()
+    event.stopPropagation()
+    const step = event.shiftKey ? 40 : 16
+    applyWidth(card.getBoundingClientRect().width + direction * step, true)
+  })
+
+  card.append(mediaFrame, copy, resizeHandle)
+  return card
+}
+
+function focusMedia(id, fly = false) {
+  const item = mediaById.get(id)
+  if (!item || !map) return
+  popup?.remove()
+  selectedMediaId = id
+  renderProfile()
+  const positionPopup = () => {
+    const content = mediaPopup.getElement()?.querySelector('.mapboxgl-popup-content')
+    const card = content?.querySelector('.media-card')
+    if (!content || !card) return
+    content.style.removeProperty('transform')
+    const top = card.getBoundingClientRect().top
+    if (top < 12) content.style.transform = `translateY(${12 - top}px)`
+  }
+  repositionMediaPopup = positionPopup
+  const showPopup = () => {
+    if (!mediaVisible || selectedMediaId !== id) return
+    const content = mediaPopupContent(item)
+    content.addEventListener('mediaresize', () => {
+      requestAnimationFrame(repositionMediaPopup)
+    })
+    mediaPopup
+      .setLngLat([item.lon, item.lat])
+      .setDOMContent(content)
+      .addTo(map)
+    document.body.classList.add('media-photo-expanded')
+    requestAnimationFrame(positionPopup)
+  }
+
+  if (fly) {
+    stopOrbit()
+    map.stop()
+    showPopup()
+    map.once('moveend', positionPopup)
+    map.flyTo({
+      center: [item.lon, item.lat],
+      zoom: Math.max(map.getZoom(), 14.5),
+      pitch: relief ? 45 : 0,
+      offset: [0, Math.min(160, map.getContainer().clientHeight * 0.44)],
+      duration: 1200,
+      essential: true,
+    })
+  } else {
+    showPopup()
+  }
+}
+
 function focusFacility(id, visitId = null, fly = false) {
   const facility = facilityById.get(id)
   if (!facility || !map) return
+  mediaPopup?.remove()
   const visits = facilityVisits.filter(visit => visit.facility.id === id)
   const selected = visits.find(visit => visit.id === visitId) || visits[0]
   const meta = FACILITY_TYPES[facility.type]
@@ -724,12 +1301,18 @@ const fitPad = () =>
     : { top: 60, bottom: 70, left: 240, right: 70 }
 
 let popup = null
+let mediaPopup = null
 if (map) {
   map.on('style.load', async () => {
     addCourseLayers()
     addWaypointLayers()
     try {
       await addFacilityLayers()
+    } catch (error) {
+      console.error(error)
+    }
+    try {
+      await addMediaLayers()
     } catch (error) {
       console.error(error)
     }
@@ -746,6 +1329,18 @@ if (map) {
     })
   })
   popup = new mapboxgl.Popup({ className: 'wp-pop', offset: 16, maxWidth: '300px' })
+  mediaPopup = new mapboxgl.Popup({
+    className: 'media-pop',
+    anchor: 'bottom',
+    offset: 32,
+    maxWidth: '480px',
+  })
+  mediaPopup.on('close', () => {
+    document.body.classList.remove('media-photo-expanded')
+    repositionMediaPopup = () => {}
+    selectedMediaId = null
+    renderProfile()
+  })
   map.on('mousedown', stopOrbit)
 }
 
@@ -756,6 +1351,7 @@ function focusWaypoint(id, fromMap = false) {
     li.classList.toggle('sel', li.dataset.id === id))
   $(`.wp[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   if (!map) return
+  mediaPopup?.remove()
 
   const eta = etaAt(w.mi)
   const gate = w.gate ? resolveWindow(w.gate.spec, eta) : null
@@ -830,6 +1426,7 @@ function captureUserLocation() {
 
     if (map) {
       popup?.remove()
+      mediaPopup?.remove()
       stopOrbit()
       map.flyTo({
         center: [userLocation.lon, userLocation.lat],
@@ -868,6 +1465,15 @@ $('#ctl-3d').addEventListener('click', () => {
 })
 $('#ctl-orbit').addEventListener('click', () => (orbiting ? stopOrbit() : startOrbit()))
 $('#ctl-location').addEventListener('click', captureUserLocation)
+$('#ctl-media').addEventListener('click', () => {
+  mediaVisible = !mediaVisible
+  const button = $('#ctl-media')
+  button.classList.toggle('on', mediaVisible)
+  button.setAttribute('aria-pressed', String(mediaVisible))
+  if (!mediaVisible) mediaPopup?.remove()
+  updateMediaSources()
+  renderProfile()
+})
 for (const [type, id] of [
   ['water', '#ctl-water'],
   ['bathrooms', '#ctl-bathrooms'],
@@ -1611,6 +2217,96 @@ function renderProfile() {
     c.setAttribute('stroke', C.ink)
     c.setAttribute('stroke-width', 1.1)
     svg.appendChild(c)
+  }
+
+  // Route media use their poster image as the profile marker.
+  if (mediaVisible && selectedMediaId) {
+    routeMedia
+      .filter(item => item.id === selectedMediaId)
+      .forEach((item, index) => {
+      const px = x(item.mi)
+      const py = y(ptAt(item.mi).ele)
+      const selected = item.id === selectedMediaId
+      const markerSize = selected ? 20 : 16
+      const markerX = px - markerSize / 2
+      const markerY = Math.max(padT + 1, py - markerSize - 8)
+
+      svg.appendChild(line(
+        px,
+        markerY + markerSize,
+        px,
+        Math.max(markerY + markerSize, py - 3),
+        selected ? C.ink : 'rgba(0,0,0,0.38)',
+        selected ? 1.4 : 1,
+      ))
+
+      const clip = document.createElementNS(NS, 'clipPath')
+      clip.setAttribute('id', `media-profile-clip-${index}`)
+      const clipRect = rect(markerX, markerY, markerSize, markerSize, '#ffffff')
+      clipRect.setAttribute('rx', 2)
+      clip.appendChild(clipRect)
+      defs.appendChild(clip)
+
+      const group = document.createElementNS(NS, 'g')
+      group.classList.add('profile-media-marker')
+      group.setAttribute('role', 'button')
+      group.setAttribute('tabindex', '0')
+      group.setAttribute(
+        'aria-label',
+        `Open ${item.type === 'video' ? 'video' : item.type === 'audio' ? 'audio' : 'photo'} from ${item.title}, mile ${fmtMi(item.mi)}`,
+      )
+
+      const frame = rect(markerX - 2, markerY - 2, markerSize + 4, markerSize + 4, C.paper)
+      frame.setAttribute('rx', 3)
+      frame.setAttribute('stroke', C.ink)
+      frame.setAttribute('stroke-width', selected ? 1.8 : 1)
+      const image = document.createElementNS(NS, 'image')
+      image.setAttribute('href', item.thumbnailSrc || item.src)
+      image.setAttribute('x', markerX)
+      image.setAttribute('y', markerY)
+      image.setAttribute('width', markerSize)
+      image.setAttribute('height', markerSize)
+      image.setAttribute('preserveAspectRatio', 'xMidYMid slice')
+      image.setAttribute('clip-path', `url(#media-profile-clip-${index})`)
+      group.append(frame, image)
+      if (item.type === 'video' || item.type === 'audio') {
+        const centerY = markerY + markerSize / 2
+        const iconBackground = document.createElementNS(NS, 'circle')
+        iconBackground.setAttribute('cx', px)
+        iconBackground.setAttribute('cy', centerY)
+        iconBackground.setAttribute('r', 5.5)
+        iconBackground.setAttribute('fill', 'rgba(255,255,255,0.9)')
+        iconBackground.setAttribute('stroke', C.ink)
+        iconBackground.setAttribute('stroke-width', 0.8)
+        group.appendChild(iconBackground)
+        if (item.type === 'video') {
+          const play = document.createElementNS(NS, 'polygon')
+          play.setAttribute(
+            'points',
+            `${px - 1.7},${centerY - 3} ${px + 3},${centerY} ${px - 1.7},${centerY + 3}`,
+          )
+          play.setAttribute('fill', C.ink)
+          group.appendChild(play)
+        } else {
+          for (const [dx, halfHeight] of [[-2.5, 2], [0, 3.5], [2.5, 1.5]]) {
+            group.appendChild(line(px + dx, centerY - halfHeight, px + dx, centerY + halfHeight, C.ink, 1))
+          }
+        }
+      }
+
+      const activate = event => {
+        event.preventDefault()
+        event.stopPropagation()
+        focusMedia(item.id, true)
+      }
+      group.addEventListener('pointerdown', event => event.stopPropagation())
+      group.addEventListener('pointerup', event => event.stopPropagation())
+      group.addEventListener('click', activate)
+      group.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') activate(event)
+      })
+      svg.appendChild(group)
+      })
   }
 
   // sunset / sunrise hairlines with labels
