@@ -15,6 +15,21 @@ Use this workflow after the user provides a source folder. Treat the source fold
 
 Ask only when unresolved timing or placement would materially change the result.
 
+For JPEG/QuickTime batches with a FIT activity, use the repository importer:
+
+```shell
+python3 tools/import_route_media.py \
+  --source "/absolute/path/to/read-only/source" \
+  --fit activity/Homedred_Miler.fit \
+  --process
+```
+
+Install `fitdecode` if the environment does not provide it. The importer hashes and
+inventories the source, validates embedded GPS against the activity, resolves repeated
+route sections from activity progress, writes `app/src/media-manifest.json`, and creates
+optimized assets. Put intentional title or alt-text exceptions in
+`app/src/media-overrides.json` so rerunning the importer preserves them.
+
 ## Stage 1: inventory and map everything
 
 1. Recursively inventory photos, RAW files, videos, audio, activity tracks, and sidecars. Ignore hidden/temp files.

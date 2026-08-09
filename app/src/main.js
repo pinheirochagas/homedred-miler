@@ -8,7 +8,7 @@ import {
 import { elapsedAt, PACE_BASE_SECS } from './pace.js'
 import { waypoints } from './waypoints.js'
 import { facilities } from './facilities.js'
-import { mediaItems } from './media.js?v=20260806-audio-iphone6'
+import { mediaItems } from './media.js?v=20260809-curated'
 import { crewPlan } from './crew-plan.js'
 import { supplyGroups as defaultSupplyGroups } from './supplies.js'
 import { resolveWindow, windowStatus, sunTimes, hhmm } from './sun.js'
@@ -169,19 +169,24 @@ const geoDistance = (aLat, aLon, bLat, bLon) => {
 }
 
 const routeMedia = mediaItems.map(item => {
-  let routeIndex = 0
-  let offsetM = Infinity
-  for (let i = 0; i < course.n; i++) {
-    const meters = geoDistance(item.lat, item.lon, lat(i), lon(i))
-    if (meters < offsetM) {
-      routeIndex = i
-      offsetM = meters
+  const hasExplicitMile = Number.isFinite(item.routeMi)
+  let routeIndex = hasExplicitMile ? idxAt(item.routeMi) : 0
+  let offsetM = hasExplicitMile
+    ? geoDistance(item.lat, item.lon, lat(routeIndex), lon(routeIndex))
+    : Infinity
+  if (!hasExplicitMile) {
+    for (let i = 0; i < course.n; i++) {
+      const meters = geoDistance(item.lat, item.lon, lat(i), lon(i))
+      if (meters < offsetM) {
+        routeIndex = i
+        offsetM = meters
+      }
     }
   }
   return {
     ...item,
     routeIndex,
-    mi: dist(routeIndex),
+    mi: hasExplicitMile ? item.routeMi : dist(routeIndex),
     routeLat: lat(routeIndex),
     routeLon: lon(routeIndex),
     offsetM,
