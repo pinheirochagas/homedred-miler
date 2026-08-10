@@ -1,6 +1,6 @@
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import './style.css?v=20260809-activity-menu'
+import './style.css?v=20260809-activity-default'
 import {
   course, ptAt, statsBetween, gradeAt, fullLine, sliceLine,
   idxAt, lat, lon, dist, ele, fmtFt, fmtMi,
@@ -87,7 +87,7 @@ const checkedSupplies = (() => {
 let lastRemovedSupply = null
 let sel = null            // {a, b} miles
 let hoverMi = null
-let filter = 'all'
+let filter = 'activity'
 let renderedFilter = null
 const selectedSegmentKeys = new Set()
 let orbiting = false
@@ -95,7 +95,7 @@ let satellite = false
 let relief = false
 let locating = false
 let userLocation = null
-let activityVisible = false
+let activityVisible = true
 let mediaVisible = true
 let selectedMediaId = null
 let repositionMediaPopup = () => {}
