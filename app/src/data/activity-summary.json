@@ -1,0 +1,17 @@
+{
+  "distanceM": 164850,
+  "movingS": 84414,
+  "elapsedS": 92284,
+  "averagePaceSecondsPerKm": 512,
+  "relativeEffort": 582,
+  "elevationGainM": 5447,
+  "calories": 11754,
+  "weather": {
+    "condition": "Cloudy",
+    "temperatureC": 14,
+    "humidityPercent": 95,
+    "feelsLikeC": 12,
+    "windSpeedKph": 9.7,
+    "windDirection": "WSW"
+  }
+}

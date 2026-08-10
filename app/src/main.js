@@ -1,10 +1,12 @@
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import './style.css?v=20260806-audio-iphone6'
+import './style.css?v=20260809-activity-menu'
 import {
   course, ptAt, statsBetween, gradeAt, fullLine, sliceLine,
   idxAt, lat, lon, dist, ele, fmtFt, fmtMi,
 } from './data.js'
+import activity from './data/activity.json'
+import activitySummaryOverrides from './data/activity-summary.json'
 import { elapsedAt, PACE_BASE_SECS } from './pace.js'
 import { waypoints } from './waypoints.js'
 import { facilities } from './facilities.js'
@@ -19,6 +21,7 @@ import locationRunnerIcon from './assets/location-runner.png'
 
 const TOKEN = import.meta.env.MAPBOX_TOKEN
 const $ = s => document.querySelector(s)
+const activitySummary = { ...activity.summary, ...activitySummaryOverrides }
 
 // ---------------------------------------------------------------- state
 // race day: Sat Aug 8 2026, 10:00 · 24 h target
@@ -92,6 +95,7 @@ let satellite = false
 let relief = false
 let locating = false
 let userLocation = null
+let activityVisible = false
 let mediaVisible = true
 let selectedMediaId = null
 let repositionMediaPopup = () => {}
@@ -291,6 +295,7 @@ const C = {
   ink: '#000000',
   gray: '#8a8a8a',
   location: '#4f8297',
+  activity: '#0077a8',
   highlight: '#f1f17c',
   // Calibrated darker for the narrow WebGL stroke so it reads like the
   // broader profile wash against a gray basemap.
@@ -510,6 +515,83 @@ const wpGeojson = {
   }),
 }
 const EMPTY = { type: 'FeatureCollection', features: [] }
+
+const activityTrackFeature = {
+  type: 'Feature',
+  properties: { name: activitySummary.name },
+  geometry: {
+    type: 'LineString',
+    coordinates: activity.track.map(sample => sample.slice(0, 2)),
+  },
+}
+const activityEndpointFeatures = {
+  type: 'FeatureCollection',
+  features: [
+    { kind: 'start', sample: activity.track[0] },
+    { kind: 'finish', sample: activity.track.at(-1) },
+  ].map(({ kind, sample }) => ({
+    type: 'Feature',
+    properties: { kind },
+    geometry: { type: 'Point', coordinates: sample.slice(0, 2) },
+  })),
+}
+
+function activityTrackGeojson() {
+  return activityVisible ? activityTrackFeature : EMPTY
+}
+
+function activityEndpointsGeojson() {
+  return activityVisible ? activityEndpointFeatures : EMPTY
+}
+
+function addActivityLayers() {
+  if (map.getSource('activity-track')) return
+  map.addSource('activity-track', { type: 'geojson', data: activityTrackGeojson() })
+  map.addSource('activity-endpoints', { type: 'geojson', data: activityEndpointsGeojson() })
+  map.addLayer({
+    id: 'activity-track-case',
+    type: 'line',
+    source: 'activity-track',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': C.paper,
+      'line-opacity': 0.9,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3.8, 14, 7],
+    },
+  }, 'mile-dots')
+  map.addLayer({
+    id: 'activity-track-line',
+    type: 'line',
+    source: 'activity-track',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': C.activity,
+      'line-opacity': 0.96,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.7, 14, 3.2],
+    },
+  }, 'mile-dots')
+  map.addLayer({
+    id: 'activity-endpoints',
+    type: 'circle',
+    source: 'activity-endpoints',
+    paint: {
+      'circle-radius': 4.5,
+      'circle-color': [
+        'match', ['get', 'kind'],
+        'start', C.paper,
+        C.activity,
+      ],
+      'circle-stroke-width': 1.8,
+      'circle-stroke-color': C.activity,
+      'circle-emissive-strength': 1,
+    },
+  })
+}
+
+function updateActivitySources() {
+  map?.getSource('activity-track')?.setData(activityTrackGeojson())
+  map?.getSource('activity-endpoints')?.setData(activityEndpointsGeojson())
+}
 
 function userLocationGeojson() {
   if (!userLocation) return EMPTY
@@ -1310,6 +1392,7 @@ let mediaPopup = null
 if (map) {
   map.on('style.load', async () => {
     addCourseLayers()
+    addActivityLayers()
     addWaypointLayers()
     try {
       await addFacilityLayers()
@@ -1448,6 +1531,15 @@ function captureUserLocation() {
 }
 
 // ---------------------------------------------------------------- controls
+function setActivityVisible(visible) {
+  activityVisible = visible
+  const button = $('#ctl-activity')
+  button.classList.toggle('on', visible)
+  button.setAttribute('aria-pressed', String(visible))
+  updateActivitySources()
+  renderProfile()
+}
+
 $('#ctl-style').addEventListener('click', () => {
   if (!map) return
   satellite = !satellite
@@ -1470,6 +1562,7 @@ $('#ctl-3d').addEventListener('click', () => {
 })
 $('#ctl-orbit').addEventListener('click', () => (orbiting ? stopOrbit() : startOrbit()))
 $('#ctl-location').addEventListener('click', captureUserLocation)
+$('#ctl-activity').addEventListener('click', () => setActivityVisible(!activityVisible))
 $('#ctl-media').addEventListener('click', () => {
   mediaVisible = !mediaVisible
   const button = $('#ctl-media')
@@ -1554,6 +1647,7 @@ function refreshPlan() {
 document.querySelectorAll('#filters button').forEach(b =>
   b.addEventListener('click', () => {
     filter = b.dataset.f
+    if (filter === 'activity') setActivityVisible(true)
     document.querySelectorAll('#filters button').forEach(x => x.classList.toggle('on', x === b))
     renderList()
   }))
@@ -1565,6 +1659,77 @@ function visible(w) {
   return true
 }
 
+function activityDuration(seconds) {
+  const total = Math.round(seconds)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const remaining = total % 60
+  return `${hours}:${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`
+}
+
+function activityPace(seconds, distance) {
+  const pace = Math.round(seconds / distance)
+  return `${Math.floor(pace / 60)}:${String(pace % 60).padStart(2, '0')}`
+}
+
+function activityDate(value) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function renderActivity(ol) {
+  const summary = activitySummary
+  const distanceMi = summary.distanceM / 1609.344
+  const weather = summary.weather
+  const metrics = [
+    ['Average pace', `${activityPace(summary.averagePaceSecondsPerKm * 1.609344, 1)} /mi`],
+    ['Relative effort', summary.relativeEffort.toLocaleString('en-US')],
+    ['Elevation gain', `${Math.round(summary.elevationGainM * 3.28084).toLocaleString('en-US')} ft`],
+    ['Calories', summary.calories.toLocaleString('en-US')],
+    ['Elapsed time', activityDuration(summary.elapsedS)],
+  ]
+  const weatherMetrics = [
+    ['Temperature', `${Math.round(weather.temperatureC * 9 / 5 + 32)} °F`],
+    ['Humidity', `${weather.humidityPercent}%`],
+    ['Feels like', `${Math.round(weather.feelsLikeC * 9 / 5 + 32)} °F`],
+    ['Wind speed', `${(weather.windSpeedKph / 1.609344).toFixed(1)} mph`],
+    ['Wind direction', weather.windDirection],
+  ]
+  const li = document.createElement('li')
+  li.className = 'activity-card'
+  li.innerHTML = `
+    <article aria-labelledby="activity-title">
+      <div class="activity-kicker"><span aria-hidden="true"></span>recorded activity</div>
+      <h2 id="activity-title">${summary.name}</h2>
+      <p class="activity-date">${summary.sport} · ${activityDate(summary.startAt)} → ${activityDate(summary.finishAt)}</p>
+      <div class="activity-hero">
+        <div><strong>${distanceMi.toFixed(2)}</strong><span>miles</span></div>
+        <div><strong>${activityDuration(summary.movingS)}</strong><span>moving time</span></div>
+      </div>
+      <dl class="activity-grid">
+        ${metrics.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}
+      </dl>
+      <section class="activity-weather" aria-labelledby="activity-weather-title">
+        <div class="activity-weather-heading">
+          <svg viewBox="0 0 24 18" aria-hidden="true">
+            <path d="M6.5 16.5h11a5 5 0 0 0 .3-10A7 7 0 0 0 4.4 7.9a4.4 4.4 0 0 0 2.1 8.6Z" />
+          </svg>
+          <h3 id="activity-weather-title">${weather.condition}</h3>
+        </div>
+        <dl class="activity-weather-grid">
+          ${weatherMetrics.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}
+        </dl>
+      </section>
+    </article>`
+  ol.appendChild(li)
+}
+
 function renderList() {
   const ol = $('#wplist')
   const summary = $('#segment-summary')
@@ -1574,7 +1739,13 @@ function renderList() {
   ol.innerHTML = ''
   suppliesSummary.hidden = true
   $('#supplies-editor').hidden = true
-  $('#legend').hidden = filter === 'supplies' || filter === 'crew'
+  $('#legend').hidden = filter === 'supplies' || filter === 'crew' || filter === 'activity'
+  if (filter === 'activity') {
+    summary.hidden = true
+    renderActivity(ol)
+    ol.scrollTop = scrollTop
+    return
+  }
   if (filter === 'crew') {
     summary.hidden = true
     renderCrewPlan(ol)
@@ -2211,6 +2382,25 @@ function renderProfile() {
   }
   // Draw the contour after the wash so it remains solid black and fully opaque.
   svg.appendChild(path(dLine, 'none', C.ink, 1.4))
+  if (activityVisible && activity.track.length > 1) {
+    const maxPoints = Math.max(300, Math.floor(W * 1.5))
+    const activityStep = Math.max(1, Math.floor(activity.track.length / maxPoints))
+    const trackDistanceM = activity.track.at(-1)[3]
+    const activityPoint = sample => {
+      const activityMi = sample[3] / trackDistanceM * course.totalMi
+      const activityY = y(sample[2] * 3.28084)
+      return `${x(activityMi).toFixed(1)} ${Math.min(H - padB, Math.max(padT, activityY)).toFixed(1)}`
+    }
+    let activityPath = `M ${activityPoint(activity.track[0])}`
+    for (let i = activityStep; i < activity.track.length; i += activityStep) {
+      activityPath += ` L ${activityPoint(activity.track[i])}`
+    }
+    activityPath += ` L ${activityPoint(activity.track.at(-1))}`
+    const actualLine = path(activityPath, 'none', C.activity, 1.25)
+    actualLine.setAttribute('class', 'activity-profile-line')
+    actualLine.setAttribute('vector-effect', 'non-scaling-stroke')
+    svg.appendChild(actualLine)
+  }
 
   // waypoint ticks (crew stops only, keeps it clean)
   for (const w of waypoints) {
