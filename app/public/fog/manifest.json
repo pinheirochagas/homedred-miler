@@ -1,0 +1,1474 @@
+{
+  "version": 1,
+  "kind": "fogProbability",
+  "product": "G18-L2-CONUS-FLS-IFR",
+  "label": "GOES-18 textured IFR fog probability",
+  "description": "High-resolution GOES-18 cloud texture constrained by the probability of instrument-flight-rule fog or low stratus, estimated from satellite observations and numerical weather model data.",
+  "caveat": "Satellite and model estimate, not ground truth. Elevated low cloud can look like surface fog, and higher cloud can obscure conditions below.",
+  "activityStartAt": "2026-08-08T17:00:40Z",
+  "activityFinishAt": "2026-08-09T18:38:45Z",
+  "sourceStartAt": "2026-08-08T17:01:17Z",
+  "sourceFinishAt": "2026-08-09T18:41:18Z",
+  "expectedCadenceS": 300,
+  "bounds": [
+    -123.75,
+    36.59788913307021,
+    -120.9375,
+    38.8225909761771
+  ],
+  "tile": {
+    "z": 7,
+    "x": 20,
+    "y": 49
+  },
+  "source": {
+    "data": "NOAA/NESDIS GOES-18 ABI Fog/Low Stratus",
+    "texture": "NOAA/NESDIS GOES-18 ABI GeoColor",
+    "tiles": "UW-Madison SSEC RealEarth",
+    "url": "https://realearth.ssec.wisc.edu/",
+    "terms": "https://www.ssec.wisc.edu/realearth/terms-of-use/"
+  },
+  "frames": [
+    {
+      "time": "2026-08-08T17:01:17Z",
+      "activityElapsedS": 37,
+      "textureTime": "2026-08-08T17:01:17Z",
+      "url": "/fog/frames/20260808T170117Z.png"
+    },
+    {
+      "time": "2026-08-08T17:11:17Z",
+      "activityElapsedS": 637,
+      "textureTime": "2026-08-08T17:11:17Z",
+      "url": "/fog/frames/20260808T171117Z.png"
+    },
+    {
+      "time": "2026-08-08T17:16:17Z",
+      "activityElapsedS": 937,
+      "textureTime": "2026-08-08T17:16:17Z",
+      "url": "/fog/frames/20260808T171617Z.png"
+    },
+    {
+      "time": "2026-08-08T17:51:17Z",
+      "activityElapsedS": 3037,
+      "textureTime": "2026-08-08T17:51:17Z",
+      "url": "/fog/frames/20260808T175117Z.png"
+    },
+    {
+      "time": "2026-08-08T18:21:17Z",
+      "activityElapsedS": 4837,
+      "textureTime": "2026-08-08T18:21:17Z",
+      "url": "/fog/frames/20260808T182117Z.png"
+    },
+    {
+      "time": "2026-08-08T18:36:17Z",
+      "activityElapsedS": 5737,
+      "textureTime": "2026-08-08T18:36:17Z",
+      "url": "/fog/frames/20260808T183617Z.png"
+    },
+    {
+      "time": "2026-08-08T19:16:17Z",
+      "activityElapsedS": 8137,
+      "textureTime": "2026-08-08T19:16:17Z",
+      "url": "/fog/frames/20260808T191617Z.png"
+    },
+    {
+      "time": "2026-08-08T19:21:17Z",
+      "activityElapsedS": 8437,
+      "textureTime": "2026-08-08T19:21:17Z",
+      "url": "/fog/frames/20260808T192117Z.png"
+    },
+    {
+      "time": "2026-08-08T19:46:17Z",
+      "activityElapsedS": 9937,
+      "textureTime": "2026-08-08T19:46:17Z",
+      "url": "/fog/frames/20260808T194617Z.png"
+    },
+    {
+      "time": "2026-08-08T19:51:17Z",
+      "activityElapsedS": 10237,
+      "textureTime": "2026-08-08T19:51:17Z",
+      "url": "/fog/frames/20260808T195117Z.png"
+    },
+    {
+      "time": "2026-08-08T20:06:17Z",
+      "activityElapsedS": 11137,
+      "textureTime": "2026-08-08T20:06:17Z",
+      "url": "/fog/frames/20260808T200617Z.png"
+    },
+    {
+      "time": "2026-08-08T20:21:17Z",
+      "activityElapsedS": 12037,
+      "textureTime": "2026-08-08T20:21:17Z",
+      "url": "/fog/frames/20260808T202117Z.png"
+    },
+    {
+      "time": "2026-08-08T20:31:17Z",
+      "activityElapsedS": 12637,
+      "textureTime": "2026-08-08T20:31:17Z",
+      "url": "/fog/frames/20260808T203117Z.png"
+    },
+    {
+      "time": "2026-08-08T21:01:17Z",
+      "activityElapsedS": 14437,
+      "textureTime": "2026-08-08T21:01:17Z",
+      "url": "/fog/frames/20260808T210117Z.png"
+    },
+    {
+      "time": "2026-08-08T21:26:17Z",
+      "activityElapsedS": 15937,
+      "textureTime": "2026-08-08T21:26:17Z",
+      "url": "/fog/frames/20260808T212617Z.png"
+    },
+    {
+      "time": "2026-08-08T21:31:17Z",
+      "activityElapsedS": 16237,
+      "textureTime": "2026-08-08T21:31:17Z",
+      "url": "/fog/frames/20260808T213117Z.png"
+    },
+    {
+      "time": "2026-08-08T21:36:17Z",
+      "activityElapsedS": 16537,
+      "textureTime": "2026-08-08T21:36:17Z",
+      "url": "/fog/frames/20260808T213617Z.png"
+    },
+    {
+      "time": "2026-08-08T21:41:17Z",
+      "activityElapsedS": 16837,
+      "textureTime": "2026-08-08T21:41:17Z",
+      "url": "/fog/frames/20260808T214117Z.png"
+    },
+    {
+      "time": "2026-08-08T21:46:17Z",
+      "activityElapsedS": 17137,
+      "textureTime": "2026-08-08T21:46:17Z",
+      "url": "/fog/frames/20260808T214617Z.png"
+    },
+    {
+      "time": "2026-08-08T22:11:17Z",
+      "activityElapsedS": 18637,
+      "textureTime": "2026-08-08T22:11:17Z",
+      "url": "/fog/frames/20260808T221117Z.png"
+    },
+    {
+      "time": "2026-08-08T22:16:17Z",
+      "activityElapsedS": 18937,
+      "textureTime": "2026-08-08T22:16:17Z",
+      "url": "/fog/frames/20260808T221617Z.png"
+    },
+    {
+      "time": "2026-08-08T22:21:17Z",
+      "activityElapsedS": 19237,
+      "textureTime": "2026-08-08T22:21:17Z",
+      "url": "/fog/frames/20260808T222117Z.png"
+    },
+    {
+      "time": "2026-08-08T22:26:17Z",
+      "activityElapsedS": 19537,
+      "textureTime": "2026-08-08T22:26:17Z",
+      "url": "/fog/frames/20260808T222617Z.png"
+    },
+    {
+      "time": "2026-08-08T22:31:17Z",
+      "activityElapsedS": 19837,
+      "textureTime": "2026-08-08T22:31:17Z",
+      "url": "/fog/frames/20260808T223117Z.png"
+    },
+    {
+      "time": "2026-08-08T22:36:17Z",
+      "activityElapsedS": 20137,
+      "textureTime": "2026-08-08T22:36:17Z",
+      "url": "/fog/frames/20260808T223617Z.png"
+    },
+    {
+      "time": "2026-08-08T22:41:17Z",
+      "activityElapsedS": 20437,
+      "textureTime": "2026-08-08T22:41:17Z",
+      "url": "/fog/frames/20260808T224117Z.png"
+    },
+    {
+      "time": "2026-08-08T22:46:17Z",
+      "activityElapsedS": 20737,
+      "textureTime": "2026-08-08T22:46:17Z",
+      "url": "/fog/frames/20260808T224617Z.png"
+    },
+    {
+      "time": "2026-08-08T22:51:17Z",
+      "activityElapsedS": 21037,
+      "textureTime": "2026-08-08T22:51:17Z",
+      "url": "/fog/frames/20260808T225117Z.png"
+    },
+    {
+      "time": "2026-08-08T22:56:17Z",
+      "activityElapsedS": 21337,
+      "textureTime": "2026-08-08T22:56:17Z",
+      "url": "/fog/frames/20260808T225617Z.png"
+    },
+    {
+      "time": "2026-08-08T23:01:17Z",
+      "activityElapsedS": 21637,
+      "textureTime": "2026-08-08T23:01:17Z",
+      "url": "/fog/frames/20260808T230117Z.png"
+    },
+    {
+      "time": "2026-08-08T23:06:17Z",
+      "activityElapsedS": 21937,
+      "textureTime": "2026-08-08T23:06:17Z",
+      "url": "/fog/frames/20260808T230617Z.png"
+    },
+    {
+      "time": "2026-08-08T23:21:17Z",
+      "activityElapsedS": 22837,
+      "textureTime": "2026-08-08T23:21:17Z",
+      "url": "/fog/frames/20260808T232117Z.png"
+    },
+    {
+      "time": "2026-08-08T23:26:17Z",
+      "activityElapsedS": 23137,
+      "textureTime": "2026-08-08T23:26:17Z",
+      "url": "/fog/frames/20260808T232617Z.png"
+    },
+    {
+      "time": "2026-08-08T23:36:17Z",
+      "activityElapsedS": 23737,
+      "textureTime": "2026-08-08T23:36:17Z",
+      "url": "/fog/frames/20260808T233617Z.png"
+    },
+    {
+      "time": "2026-08-08T23:46:17Z",
+      "activityElapsedS": 24337,
+      "textureTime": "2026-08-08T23:46:17Z",
+      "url": "/fog/frames/20260808T234617Z.png"
+    },
+    {
+      "time": "2026-08-08T23:56:17Z",
+      "activityElapsedS": 24937,
+      "textureTime": "2026-08-08T23:56:17Z",
+      "url": "/fog/frames/20260808T235617Z.png"
+    },
+    {
+      "time": "2026-08-09T00:06:17Z",
+      "activityElapsedS": 25537,
+      "textureTime": "2026-08-09T00:06:17Z",
+      "url": "/fog/frames/20260809T000617Z.png"
+    },
+    {
+      "time": "2026-08-09T00:11:17Z",
+      "activityElapsedS": 25837,
+      "textureTime": "2026-08-09T00:11:17Z",
+      "url": "/fog/frames/20260809T001117Z.png"
+    },
+    {
+      "time": "2026-08-09T00:16:17Z",
+      "activityElapsedS": 26137,
+      "textureTime": "2026-08-09T00:16:17Z",
+      "url": "/fog/frames/20260809T001617Z.png"
+    },
+    {
+      "time": "2026-08-09T00:21:17Z",
+      "activityElapsedS": 26437,
+      "textureTime": "2026-08-09T00:21:17Z",
+      "url": "/fog/frames/20260809T002117Z.png"
+    },
+    {
+      "time": "2026-08-09T00:26:17Z",
+      "activityElapsedS": 26737,
+      "textureTime": "2026-08-09T00:26:17Z",
+      "url": "/fog/frames/20260809T002617Z.png"
+    },
+    {
+      "time": "2026-08-09T00:31:17Z",
+      "activityElapsedS": 27037,
+      "textureTime": "2026-08-09T00:31:17Z",
+      "url": "/fog/frames/20260809T003117Z.png"
+    },
+    {
+      "time": "2026-08-09T00:36:17Z",
+      "activityElapsedS": 27337,
+      "textureTime": "2026-08-09T00:36:17Z",
+      "url": "/fog/frames/20260809T003617Z.png"
+    },
+    {
+      "time": "2026-08-09T00:41:17Z",
+      "activityElapsedS": 27637,
+      "textureTime": "2026-08-09T00:41:17Z",
+      "url": "/fog/frames/20260809T004117Z.png"
+    },
+    {
+      "time": "2026-08-09T00:46:17Z",
+      "activityElapsedS": 27937,
+      "textureTime": "2026-08-09T00:46:17Z",
+      "url": "/fog/frames/20260809T004617Z.png"
+    },
+    {
+      "time": "2026-08-09T00:51:17Z",
+      "activityElapsedS": 28237,
+      "textureTime": "2026-08-09T00:51:17Z",
+      "url": "/fog/frames/20260809T005117Z.png"
+    },
+    {
+      "time": "2026-08-09T00:56:17Z",
+      "activityElapsedS": 28537,
+      "textureTime": "2026-08-09T00:56:17Z",
+      "url": "/fog/frames/20260809T005617Z.png"
+    },
+    {
+      "time": "2026-08-09T01:01:17Z",
+      "activityElapsedS": 28837,
+      "textureTime": "2026-08-09T01:01:17Z",
+      "url": "/fog/frames/20260809T010117Z.png"
+    },
+    {
+      "time": "2026-08-09T01:06:17Z",
+      "activityElapsedS": 29137,
+      "textureTime": "2026-08-09T01:06:17Z",
+      "url": "/fog/frames/20260809T010617Z.png"
+    },
+    {
+      "time": "2026-08-09T01:11:17Z",
+      "activityElapsedS": 29437,
+      "textureTime": "2026-08-09T01:11:17Z",
+      "url": "/fog/frames/20260809T011117Z.png"
+    },
+    {
+      "time": "2026-08-09T01:16:17Z",
+      "activityElapsedS": 29737,
+      "textureTime": "2026-08-09T01:16:17Z",
+      "url": "/fog/frames/20260809T011617Z.png"
+    },
+    {
+      "time": "2026-08-09T01:21:17Z",
+      "activityElapsedS": 30037,
+      "textureTime": "2026-08-09T01:21:17Z",
+      "url": "/fog/frames/20260809T012117Z.png"
+    },
+    {
+      "time": "2026-08-09T01:26:17Z",
+      "activityElapsedS": 30337,
+      "textureTime": "2026-08-09T01:26:17Z",
+      "url": "/fog/frames/20260809T012617Z.png"
+    },
+    {
+      "time": "2026-08-09T01:31:17Z",
+      "activityElapsedS": 30637,
+      "textureTime": "2026-08-09T01:31:17Z",
+      "url": "/fog/frames/20260809T013117Z.png"
+    },
+    {
+      "time": "2026-08-09T01:36:17Z",
+      "activityElapsedS": 30937,
+      "textureTime": "2026-08-09T01:36:17Z",
+      "url": "/fog/frames/20260809T013617Z.png"
+    },
+    {
+      "time": "2026-08-09T01:46:17Z",
+      "activityElapsedS": 31537,
+      "textureTime": "2026-08-09T01:46:17Z",
+      "url": "/fog/frames/20260809T014617Z.png"
+    },
+    {
+      "time": "2026-08-09T01:51:17Z",
+      "activityElapsedS": 31837,
+      "textureTime": "2026-08-09T01:51:17Z",
+      "url": "/fog/frames/20260809T015117Z.png"
+    },
+    {
+      "time": "2026-08-09T02:06:17Z",
+      "activityElapsedS": 32737,
+      "textureTime": "2026-08-09T02:06:17Z",
+      "url": "/fog/frames/20260809T020617Z.png"
+    },
+    {
+      "time": "2026-08-09T02:11:17Z",
+      "activityElapsedS": 33037,
+      "textureTime": "2026-08-09T02:11:17Z",
+      "url": "/fog/frames/20260809T021117Z.png"
+    },
+    {
+      "time": "2026-08-09T02:16:17Z",
+      "activityElapsedS": 33337,
+      "textureTime": "2026-08-09T02:16:17Z",
+      "url": "/fog/frames/20260809T021617Z.png"
+    },
+    {
+      "time": "2026-08-09T02:31:17Z",
+      "activityElapsedS": 34237,
+      "textureTime": "2026-08-09T02:31:17Z",
+      "url": "/fog/frames/20260809T023117Z.png"
+    },
+    {
+      "time": "2026-08-09T02:36:17Z",
+      "activityElapsedS": 34537,
+      "textureTime": "2026-08-09T02:36:17Z",
+      "url": "/fog/frames/20260809T023617Z.png"
+    },
+    {
+      "time": "2026-08-09T02:46:17Z",
+      "activityElapsedS": 35137,
+      "textureTime": "2026-08-09T02:46:17Z",
+      "url": "/fog/frames/20260809T024617Z.png"
+    },
+    {
+      "time": "2026-08-09T02:51:17Z",
+      "activityElapsedS": 35437,
+      "textureTime": "2026-08-09T02:51:17Z",
+      "url": "/fog/frames/20260809T025117Z.png"
+    },
+    {
+      "time": "2026-08-09T02:56:17Z",
+      "activityElapsedS": 35737,
+      "textureTime": "2026-08-09T02:56:17Z",
+      "url": "/fog/frames/20260809T025617Z.png"
+    },
+    {
+      "time": "2026-08-09T03:01:17Z",
+      "activityElapsedS": 36037,
+      "textureTime": "2026-08-09T03:01:17Z",
+      "url": "/fog/frames/20260809T030117Z.png"
+    },
+    {
+      "time": "2026-08-09T03:06:17Z",
+      "activityElapsedS": 36337,
+      "textureTime": "2026-08-09T03:01:17Z",
+      "url": "/fog/frames/20260809T030617Z.png"
+    },
+    {
+      "time": "2026-08-09T03:21:17Z",
+      "activityElapsedS": 37237,
+      "textureTime": "2026-08-09T03:21:17Z",
+      "url": "/fog/frames/20260809T032117Z.png"
+    },
+    {
+      "time": "2026-08-09T03:31:17Z",
+      "activityElapsedS": 37837,
+      "textureTime": "2026-08-09T03:31:17Z",
+      "url": "/fog/frames/20260809T033117Z.png"
+    },
+    {
+      "time": "2026-08-09T04:06:17Z",
+      "activityElapsedS": 39937,
+      "textureTime": "2026-08-09T04:06:17Z",
+      "url": "/fog/frames/20260809T040617Z.png"
+    },
+    {
+      "time": "2026-08-09T04:16:17Z",
+      "activityElapsedS": 40537,
+      "textureTime": "2026-08-09T04:16:17Z",
+      "url": "/fog/frames/20260809T041617Z.png"
+    },
+    {
+      "time": "2026-08-09T05:21:18Z",
+      "activityElapsedS": 44438,
+      "textureTime": "2026-08-09T05:21:18Z",
+      "url": "/fog/frames/20260809T052118Z.png"
+    },
+    {
+      "time": "2026-08-09T05:26:18Z",
+      "activityElapsedS": 44738,
+      "textureTime": "2026-08-09T05:26:18Z",
+      "url": "/fog/frames/20260809T052618Z.png"
+    },
+    {
+      "time": "2026-08-09T05:31:18Z",
+      "activityElapsedS": 45038,
+      "textureTime": "2026-08-09T05:31:18Z",
+      "url": "/fog/frames/20260809T053118Z.png"
+    },
+    {
+      "time": "2026-08-09T05:36:18Z",
+      "activityElapsedS": 45338,
+      "textureTime": "2026-08-09T05:36:18Z",
+      "url": "/fog/frames/20260809T053618Z.png"
+    },
+    {
+      "time": "2026-08-09T05:41:18Z",
+      "activityElapsedS": 45638,
+      "textureTime": "2026-08-09T05:41:18Z",
+      "url": "/fog/frames/20260809T054118Z.png"
+    },
+    {
+      "time": "2026-08-09T05:46:18Z",
+      "activityElapsedS": 45938,
+      "textureTime": "2026-08-09T05:46:18Z",
+      "url": "/fog/frames/20260809T054618Z.png"
+    },
+    {
+      "time": "2026-08-09T05:51:18Z",
+      "activityElapsedS": 46238,
+      "textureTime": "2026-08-09T05:51:18Z",
+      "url": "/fog/frames/20260809T055118Z.png"
+    },
+    {
+      "time": "2026-08-09T05:56:18Z",
+      "activityElapsedS": 46538,
+      "textureTime": "2026-08-09T05:56:18Z",
+      "url": "/fog/frames/20260809T055618Z.png"
+    },
+    {
+      "time": "2026-08-09T06:01:18Z",
+      "activityElapsedS": 46838,
+      "textureTime": "2026-08-09T06:01:18Z",
+      "url": "/fog/frames/20260809T060118Z.png"
+    },
+    {
+      "time": "2026-08-09T06:06:18Z",
+      "activityElapsedS": 47138,
+      "textureTime": "2026-08-09T06:06:18Z",
+      "url": "/fog/frames/20260809T060618Z.png"
+    },
+    {
+      "time": "2026-08-09T06:11:18Z",
+      "activityElapsedS": 47438,
+      "textureTime": "2026-08-09T06:11:18Z",
+      "url": "/fog/frames/20260809T061118Z.png"
+    },
+    {
+      "time": "2026-08-09T06:16:18Z",
+      "activityElapsedS": 47738,
+      "textureTime": "2026-08-09T06:16:18Z",
+      "url": "/fog/frames/20260809T061618Z.png"
+    },
+    {
+      "time": "2026-08-09T06:21:18Z",
+      "activityElapsedS": 48038,
+      "textureTime": "2026-08-09T06:21:18Z",
+      "url": "/fog/frames/20260809T062118Z.png"
+    },
+    {
+      "time": "2026-08-09T06:26:18Z",
+      "activityElapsedS": 48338,
+      "textureTime": "2026-08-09T06:26:18Z",
+      "url": "/fog/frames/20260809T062618Z.png"
+    },
+    {
+      "time": "2026-08-09T06:31:18Z",
+      "activityElapsedS": 48638,
+      "textureTime": "2026-08-09T06:31:18Z",
+      "url": "/fog/frames/20260809T063118Z.png"
+    },
+    {
+      "time": "2026-08-09T06:36:18Z",
+      "activityElapsedS": 48938,
+      "textureTime": "2026-08-09T06:36:18Z",
+      "url": "/fog/frames/20260809T063618Z.png"
+    },
+    {
+      "time": "2026-08-09T06:41:18Z",
+      "activityElapsedS": 49238,
+      "textureTime": "2026-08-09T06:41:18Z",
+      "url": "/fog/frames/20260809T064118Z.png"
+    },
+    {
+      "time": "2026-08-09T06:46:18Z",
+      "activityElapsedS": 49538,
+      "textureTime": "2026-08-09T06:46:18Z",
+      "url": "/fog/frames/20260809T064618Z.png"
+    },
+    {
+      "time": "2026-08-09T06:51:18Z",
+      "activityElapsedS": 49838,
+      "textureTime": "2026-08-09T06:51:18Z",
+      "url": "/fog/frames/20260809T065118Z.png"
+    },
+    {
+      "time": "2026-08-09T06:56:18Z",
+      "activityElapsedS": 50138,
+      "textureTime": "2026-08-09T06:56:18Z",
+      "url": "/fog/frames/20260809T065618Z.png"
+    },
+    {
+      "time": "2026-08-09T07:01:18Z",
+      "activityElapsedS": 50438,
+      "textureTime": "2026-08-09T07:01:18Z",
+      "url": "/fog/frames/20260809T070118Z.png"
+    },
+    {
+      "time": "2026-08-09T07:06:18Z",
+      "activityElapsedS": 50738,
+      "textureTime": "2026-08-09T07:06:18Z",
+      "url": "/fog/frames/20260809T070618Z.png"
+    },
+    {
+      "time": "2026-08-09T07:11:18Z",
+      "activityElapsedS": 51038,
+      "textureTime": "2026-08-09T07:11:18Z",
+      "url": "/fog/frames/20260809T071118Z.png"
+    },
+    {
+      "time": "2026-08-09T07:16:18Z",
+      "activityElapsedS": 51338,
+      "textureTime": "2026-08-09T07:16:18Z",
+      "url": "/fog/frames/20260809T071618Z.png"
+    },
+    {
+      "time": "2026-08-09T07:21:18Z",
+      "activityElapsedS": 51638,
+      "textureTime": "2026-08-09T07:21:18Z",
+      "url": "/fog/frames/20260809T072118Z.png"
+    },
+    {
+      "time": "2026-08-09T07:26:18Z",
+      "activityElapsedS": 51938,
+      "textureTime": "2026-08-09T07:26:18Z",
+      "url": "/fog/frames/20260809T072618Z.png"
+    },
+    {
+      "time": "2026-08-09T07:31:18Z",
+      "activityElapsedS": 52238,
+      "textureTime": "2026-08-09T07:31:18Z",
+      "url": "/fog/frames/20260809T073118Z.png"
+    },
+    {
+      "time": "2026-08-09T07:36:18Z",
+      "activityElapsedS": 52538,
+      "textureTime": "2026-08-09T07:36:18Z",
+      "url": "/fog/frames/20260809T073618Z.png"
+    },
+    {
+      "time": "2026-08-09T07:41:18Z",
+      "activityElapsedS": 52838,
+      "textureTime": "2026-08-09T07:41:18Z",
+      "url": "/fog/frames/20260809T074118Z.png"
+    },
+    {
+      "time": "2026-08-09T07:46:18Z",
+      "activityElapsedS": 53138,
+      "textureTime": "2026-08-09T07:46:18Z",
+      "url": "/fog/frames/20260809T074618Z.png"
+    },
+    {
+      "time": "2026-08-09T07:51:18Z",
+      "activityElapsedS": 53438,
+      "textureTime": "2026-08-09T07:51:18Z",
+      "url": "/fog/frames/20260809T075118Z.png"
+    },
+    {
+      "time": "2026-08-09T07:56:18Z",
+      "activityElapsedS": 53738,
+      "textureTime": "2026-08-09T07:56:18Z",
+      "url": "/fog/frames/20260809T075618Z.png"
+    },
+    {
+      "time": "2026-08-09T08:01:18Z",
+      "activityElapsedS": 54038,
+      "textureTime": "2026-08-09T08:01:18Z",
+      "url": "/fog/frames/20260809T080118Z.png"
+    },
+    {
+      "time": "2026-08-09T08:06:18Z",
+      "activityElapsedS": 54338,
+      "textureTime": "2026-08-09T08:06:18Z",
+      "url": "/fog/frames/20260809T080618Z.png"
+    },
+    {
+      "time": "2026-08-09T08:11:18Z",
+      "activityElapsedS": 54638,
+      "textureTime": "2026-08-09T08:11:18Z",
+      "url": "/fog/frames/20260809T081118Z.png"
+    },
+    {
+      "time": "2026-08-09T08:16:18Z",
+      "activityElapsedS": 54938,
+      "textureTime": "2026-08-09T08:16:18Z",
+      "url": "/fog/frames/20260809T081618Z.png"
+    },
+    {
+      "time": "2026-08-09T08:21:18Z",
+      "activityElapsedS": 55238,
+      "textureTime": "2026-08-09T08:21:18Z",
+      "url": "/fog/frames/20260809T082118Z.png"
+    },
+    {
+      "time": "2026-08-09T08:26:18Z",
+      "activityElapsedS": 55538,
+      "textureTime": "2026-08-09T08:26:18Z",
+      "url": "/fog/frames/20260809T082618Z.png"
+    },
+    {
+      "time": "2026-08-09T08:31:18Z",
+      "activityElapsedS": 55838,
+      "textureTime": "2026-08-09T08:31:18Z",
+      "url": "/fog/frames/20260809T083118Z.png"
+    },
+    {
+      "time": "2026-08-09T08:36:18Z",
+      "activityElapsedS": 56138,
+      "textureTime": "2026-08-09T08:36:18Z",
+      "url": "/fog/frames/20260809T083618Z.png"
+    },
+    {
+      "time": "2026-08-09T08:41:18Z",
+      "activityElapsedS": 56438,
+      "textureTime": "2026-08-09T08:41:18Z",
+      "url": "/fog/frames/20260809T084118Z.png"
+    },
+    {
+      "time": "2026-08-09T08:46:18Z",
+      "activityElapsedS": 56738,
+      "textureTime": "2026-08-09T08:46:18Z",
+      "url": "/fog/frames/20260809T084618Z.png"
+    },
+    {
+      "time": "2026-08-09T08:51:18Z",
+      "activityElapsedS": 57038,
+      "textureTime": "2026-08-09T08:51:18Z",
+      "url": "/fog/frames/20260809T085118Z.png"
+    },
+    {
+      "time": "2026-08-09T08:56:18Z",
+      "activityElapsedS": 57338,
+      "textureTime": "2026-08-09T08:56:18Z",
+      "url": "/fog/frames/20260809T085618Z.png"
+    },
+    {
+      "time": "2026-08-09T09:01:18Z",
+      "activityElapsedS": 57638,
+      "textureTime": "2026-08-09T09:01:18Z",
+      "url": "/fog/frames/20260809T090118Z.png"
+    },
+    {
+      "time": "2026-08-09T09:06:18Z",
+      "activityElapsedS": 57938,
+      "textureTime": "2026-08-09T09:06:18Z",
+      "url": "/fog/frames/20260809T090618Z.png"
+    },
+    {
+      "time": "2026-08-09T09:11:18Z",
+      "activityElapsedS": 58238,
+      "textureTime": "2026-08-09T09:11:18Z",
+      "url": "/fog/frames/20260809T091118Z.png"
+    },
+    {
+      "time": "2026-08-09T09:16:18Z",
+      "activityElapsedS": 58538,
+      "textureTime": "2026-08-09T09:16:18Z",
+      "url": "/fog/frames/20260809T091618Z.png"
+    },
+    {
+      "time": "2026-08-09T09:21:18Z",
+      "activityElapsedS": 58838,
+      "textureTime": "2026-08-09T09:21:18Z",
+      "url": "/fog/frames/20260809T092118Z.png"
+    },
+    {
+      "time": "2026-08-09T09:26:18Z",
+      "activityElapsedS": 59138,
+      "textureTime": "2026-08-09T09:26:18Z",
+      "url": "/fog/frames/20260809T092618Z.png"
+    },
+    {
+      "time": "2026-08-09T09:31:18Z",
+      "activityElapsedS": 59438,
+      "textureTime": "2026-08-09T09:31:18Z",
+      "url": "/fog/frames/20260809T093118Z.png"
+    },
+    {
+      "time": "2026-08-09T09:36:18Z",
+      "activityElapsedS": 59738,
+      "textureTime": "2026-08-09T09:36:18Z",
+      "url": "/fog/frames/20260809T093618Z.png"
+    },
+    {
+      "time": "2026-08-09T09:41:18Z",
+      "activityElapsedS": 60038,
+      "textureTime": "2026-08-09T09:41:18Z",
+      "url": "/fog/frames/20260809T094118Z.png"
+    },
+    {
+      "time": "2026-08-09T09:46:18Z",
+      "activityElapsedS": 60338,
+      "textureTime": "2026-08-09T09:46:18Z",
+      "url": "/fog/frames/20260809T094618Z.png"
+    },
+    {
+      "time": "2026-08-09T09:51:18Z",
+      "activityElapsedS": 60638,
+      "textureTime": "2026-08-09T09:51:18Z",
+      "url": "/fog/frames/20260809T095118Z.png"
+    },
+    {
+      "time": "2026-08-09T09:56:18Z",
+      "activityElapsedS": 60938,
+      "textureTime": "2026-08-09T09:56:18Z",
+      "url": "/fog/frames/20260809T095618Z.png"
+    },
+    {
+      "time": "2026-08-09T10:01:18Z",
+      "activityElapsedS": 61238,
+      "textureTime": "2026-08-09T10:01:18Z",
+      "url": "/fog/frames/20260809T100118Z.png"
+    },
+    {
+      "time": "2026-08-09T10:06:18Z",
+      "activityElapsedS": 61538,
+      "textureTime": "2026-08-09T10:06:18Z",
+      "url": "/fog/frames/20260809T100618Z.png"
+    },
+    {
+      "time": "2026-08-09T10:11:18Z",
+      "activityElapsedS": 61838,
+      "textureTime": "2026-08-09T10:11:18Z",
+      "url": "/fog/frames/20260809T101118Z.png"
+    },
+    {
+      "time": "2026-08-09T10:16:18Z",
+      "activityElapsedS": 62138,
+      "textureTime": "2026-08-09T10:16:18Z",
+      "url": "/fog/frames/20260809T101618Z.png"
+    },
+    {
+      "time": "2026-08-09T10:21:18Z",
+      "activityElapsedS": 62438,
+      "textureTime": "2026-08-09T10:21:18Z",
+      "url": "/fog/frames/20260809T102118Z.png"
+    },
+    {
+      "time": "2026-08-09T10:26:18Z",
+      "activityElapsedS": 62738,
+      "textureTime": "2026-08-09T10:26:18Z",
+      "url": "/fog/frames/20260809T102618Z.png"
+    },
+    {
+      "time": "2026-08-09T10:31:18Z",
+      "activityElapsedS": 63038,
+      "textureTime": "2026-08-09T10:31:18Z",
+      "url": "/fog/frames/20260809T103118Z.png"
+    },
+    {
+      "time": "2026-08-09T10:36:18Z",
+      "activityElapsedS": 63338,
+      "textureTime": "2026-08-09T10:36:18Z",
+      "url": "/fog/frames/20260809T103618Z.png"
+    },
+    {
+      "time": "2026-08-09T10:41:18Z",
+      "activityElapsedS": 63638,
+      "textureTime": "2026-08-09T10:41:18Z",
+      "url": "/fog/frames/20260809T104118Z.png"
+    },
+    {
+      "time": "2026-08-09T10:46:18Z",
+      "activityElapsedS": 63938,
+      "textureTime": "2026-08-09T10:46:18Z",
+      "url": "/fog/frames/20260809T104618Z.png"
+    },
+    {
+      "time": "2026-08-09T10:51:18Z",
+      "activityElapsedS": 64238,
+      "textureTime": "2026-08-09T10:51:18Z",
+      "url": "/fog/frames/20260809T105118Z.png"
+    },
+    {
+      "time": "2026-08-09T10:56:18Z",
+      "activityElapsedS": 64538,
+      "textureTime": "2026-08-09T10:56:18Z",
+      "url": "/fog/frames/20260809T105618Z.png"
+    },
+    {
+      "time": "2026-08-09T11:01:18Z",
+      "activityElapsedS": 64838,
+      "textureTime": "2026-08-09T11:01:18Z",
+      "url": "/fog/frames/20260809T110118Z.png"
+    },
+    {
+      "time": "2026-08-09T11:06:18Z",
+      "activityElapsedS": 65138,
+      "textureTime": "2026-08-09T11:06:18Z",
+      "url": "/fog/frames/20260809T110618Z.png"
+    },
+    {
+      "time": "2026-08-09T11:11:18Z",
+      "activityElapsedS": 65438,
+      "textureTime": "2026-08-09T11:11:18Z",
+      "url": "/fog/frames/20260809T111118Z.png"
+    },
+    {
+      "time": "2026-08-09T11:16:18Z",
+      "activityElapsedS": 65738,
+      "textureTime": "2026-08-09T11:16:18Z",
+      "url": "/fog/frames/20260809T111618Z.png"
+    },
+    {
+      "time": "2026-08-09T11:21:18Z",
+      "activityElapsedS": 66038,
+      "textureTime": "2026-08-09T11:21:18Z",
+      "url": "/fog/frames/20260809T112118Z.png"
+    },
+    {
+      "time": "2026-08-09T11:26:18Z",
+      "activityElapsedS": 66338,
+      "textureTime": "2026-08-09T11:26:18Z",
+      "url": "/fog/frames/20260809T112618Z.png"
+    },
+    {
+      "time": "2026-08-09T11:31:18Z",
+      "activityElapsedS": 66638,
+      "textureTime": "2026-08-09T11:31:18Z",
+      "url": "/fog/frames/20260809T113118Z.png"
+    },
+    {
+      "time": "2026-08-09T11:36:18Z",
+      "activityElapsedS": 66938,
+      "textureTime": "2026-08-09T11:36:18Z",
+      "url": "/fog/frames/20260809T113618Z.png"
+    },
+    {
+      "time": "2026-08-09T11:41:18Z",
+      "activityElapsedS": 67238,
+      "textureTime": "2026-08-09T11:41:18Z",
+      "url": "/fog/frames/20260809T114118Z.png"
+    },
+    {
+      "time": "2026-08-09T11:46:18Z",
+      "activityElapsedS": 67538,
+      "textureTime": "2026-08-09T11:46:18Z",
+      "url": "/fog/frames/20260809T114618Z.png"
+    },
+    {
+      "time": "2026-08-09T11:51:18Z",
+      "activityElapsedS": 67838,
+      "textureTime": "2026-08-09T11:51:18Z",
+      "url": "/fog/frames/20260809T115118Z.png"
+    },
+    {
+      "time": "2026-08-09T11:56:18Z",
+      "activityElapsedS": 68138,
+      "textureTime": "2026-08-09T11:56:18Z",
+      "url": "/fog/frames/20260809T115618Z.png"
+    },
+    {
+      "time": "2026-08-09T12:01:18Z",
+      "activityElapsedS": 68438,
+      "textureTime": "2026-08-09T12:01:18Z",
+      "url": "/fog/frames/20260809T120118Z.png"
+    },
+    {
+      "time": "2026-08-09T12:06:18Z",
+      "activityElapsedS": 68738,
+      "textureTime": "2026-08-09T12:06:18Z",
+      "url": "/fog/frames/20260809T120618Z.png"
+    },
+    {
+      "time": "2026-08-09T12:11:18Z",
+      "activityElapsedS": 69038,
+      "textureTime": "2026-08-09T12:11:18Z",
+      "url": "/fog/frames/20260809T121118Z.png"
+    },
+    {
+      "time": "2026-08-09T12:16:18Z",
+      "activityElapsedS": 69338,
+      "textureTime": "2026-08-09T12:16:18Z",
+      "url": "/fog/frames/20260809T121618Z.png"
+    },
+    {
+      "time": "2026-08-09T12:21:18Z",
+      "activityElapsedS": 69638,
+      "textureTime": "2026-08-09T12:21:18Z",
+      "url": "/fog/frames/20260809T122118Z.png"
+    },
+    {
+      "time": "2026-08-09T12:26:18Z",
+      "activityElapsedS": 69938,
+      "textureTime": "2026-08-09T12:26:18Z",
+      "url": "/fog/frames/20260809T122618Z.png"
+    },
+    {
+      "time": "2026-08-09T12:31:18Z",
+      "activityElapsedS": 70238,
+      "textureTime": "2026-08-09T12:31:18Z",
+      "url": "/fog/frames/20260809T123118Z.png"
+    },
+    {
+      "time": "2026-08-09T12:36:18Z",
+      "activityElapsedS": 70538,
+      "textureTime": "2026-08-09T12:36:18Z",
+      "url": "/fog/frames/20260809T123618Z.png"
+    },
+    {
+      "time": "2026-08-09T12:41:18Z",
+      "activityElapsedS": 70838,
+      "textureTime": "2026-08-09T12:41:18Z",
+      "url": "/fog/frames/20260809T124118Z.png"
+    },
+    {
+      "time": "2026-08-09T12:46:18Z",
+      "activityElapsedS": 71138,
+      "textureTime": "2026-08-09T12:46:18Z",
+      "url": "/fog/frames/20260809T124618Z.png"
+    },
+    {
+      "time": "2026-08-09T12:51:18Z",
+      "activityElapsedS": 71438,
+      "textureTime": "2026-08-09T12:51:18Z",
+      "url": "/fog/frames/20260809T125118Z.png"
+    },
+    {
+      "time": "2026-08-09T12:56:18Z",
+      "activityElapsedS": 71738,
+      "textureTime": "2026-08-09T12:56:18Z",
+      "url": "/fog/frames/20260809T125618Z.png"
+    },
+    {
+      "time": "2026-08-09T13:01:18Z",
+      "activityElapsedS": 72038,
+      "textureTime": "2026-08-09T13:01:18Z",
+      "url": "/fog/frames/20260809T130118Z.png"
+    },
+    {
+      "time": "2026-08-09T13:06:18Z",
+      "activityElapsedS": 72338,
+      "textureTime": "2026-08-09T13:06:18Z",
+      "url": "/fog/frames/20260809T130618Z.png"
+    },
+    {
+      "time": "2026-08-09T13:11:18Z",
+      "activityElapsedS": 72638,
+      "textureTime": "2026-08-09T13:11:18Z",
+      "url": "/fog/frames/20260809T131118Z.png"
+    },
+    {
+      "time": "2026-08-09T13:16:18Z",
+      "activityElapsedS": 72938,
+      "textureTime": "2026-08-09T13:16:18Z",
+      "url": "/fog/frames/20260809T131618Z.png"
+    },
+    {
+      "time": "2026-08-09T13:21:18Z",
+      "activityElapsedS": 73238,
+      "textureTime": "2026-08-09T13:21:18Z",
+      "url": "/fog/frames/20260809T132118Z.png"
+    },
+    {
+      "time": "2026-08-09T13:26:18Z",
+      "activityElapsedS": 73538,
+      "textureTime": "2026-08-09T13:26:18Z",
+      "url": "/fog/frames/20260809T132618Z.png"
+    },
+    {
+      "time": "2026-08-09T13:31:18Z",
+      "activityElapsedS": 73838,
+      "textureTime": "2026-08-09T13:31:18Z",
+      "url": "/fog/frames/20260809T133118Z.png"
+    },
+    {
+      "time": "2026-08-09T13:36:18Z",
+      "activityElapsedS": 74138,
+      "textureTime": "2026-08-09T13:36:18Z",
+      "url": "/fog/frames/20260809T133618Z.png"
+    },
+    {
+      "time": "2026-08-09T13:41:18Z",
+      "activityElapsedS": 74438,
+      "textureTime": "2026-08-09T13:41:18Z",
+      "url": "/fog/frames/20260809T134118Z.png"
+    },
+    {
+      "time": "2026-08-09T13:46:18Z",
+      "activityElapsedS": 74738,
+      "textureTime": "2026-08-09T13:46:18Z",
+      "url": "/fog/frames/20260809T134618Z.png"
+    },
+    {
+      "time": "2026-08-09T13:51:18Z",
+      "activityElapsedS": 75038,
+      "textureTime": "2026-08-09T13:51:18Z",
+      "url": "/fog/frames/20260809T135118Z.png"
+    },
+    {
+      "time": "2026-08-09T13:56:18Z",
+      "activityElapsedS": 75338,
+      "textureTime": "2026-08-09T13:56:18Z",
+      "url": "/fog/frames/20260809T135618Z.png"
+    },
+    {
+      "time": "2026-08-09T14:01:18Z",
+      "activityElapsedS": 75638,
+      "textureTime": "2026-08-09T14:01:18Z",
+      "url": "/fog/frames/20260809T140118Z.png"
+    },
+    {
+      "time": "2026-08-09T14:06:18Z",
+      "activityElapsedS": 75938,
+      "textureTime": "2026-08-09T14:06:18Z",
+      "url": "/fog/frames/20260809T140618Z.png"
+    },
+    {
+      "time": "2026-08-09T14:11:18Z",
+      "activityElapsedS": 76238,
+      "textureTime": "2026-08-09T14:11:18Z",
+      "url": "/fog/frames/20260809T141118Z.png"
+    },
+    {
+      "time": "2026-08-09T14:16:18Z",
+      "activityElapsedS": 76538,
+      "textureTime": "2026-08-09T14:16:18Z",
+      "url": "/fog/frames/20260809T141618Z.png"
+    },
+    {
+      "time": "2026-08-09T14:21:18Z",
+      "activityElapsedS": 76838,
+      "textureTime": "2026-08-09T14:21:18Z",
+      "url": "/fog/frames/20260809T142118Z.png"
+    },
+    {
+      "time": "2026-08-09T14:26:18Z",
+      "activityElapsedS": 77138,
+      "textureTime": "2026-08-09T14:26:18Z",
+      "url": "/fog/frames/20260809T142618Z.png"
+    },
+    {
+      "time": "2026-08-09T14:31:18Z",
+      "activityElapsedS": 77438,
+      "textureTime": "2026-08-09T14:31:18Z",
+      "url": "/fog/frames/20260809T143118Z.png"
+    },
+    {
+      "time": "2026-08-09T14:36:18Z",
+      "activityElapsedS": 77738,
+      "textureTime": "2026-08-09T14:36:18Z",
+      "url": "/fog/frames/20260809T143618Z.png"
+    },
+    {
+      "time": "2026-08-09T14:41:18Z",
+      "activityElapsedS": 78038,
+      "textureTime": "2026-08-09T14:41:18Z",
+      "url": "/fog/frames/20260809T144118Z.png"
+    },
+    {
+      "time": "2026-08-09T14:46:18Z",
+      "activityElapsedS": 78338,
+      "textureTime": "2026-08-09T14:46:18Z",
+      "url": "/fog/frames/20260809T144618Z.png"
+    },
+    {
+      "time": "2026-08-09T14:51:18Z",
+      "activityElapsedS": 78638,
+      "textureTime": "2026-08-09T14:51:18Z",
+      "url": "/fog/frames/20260809T145118Z.png"
+    },
+    {
+      "time": "2026-08-09T14:56:18Z",
+      "activityElapsedS": 78938,
+      "textureTime": "2026-08-09T14:56:18Z",
+      "url": "/fog/frames/20260809T145618Z.png"
+    },
+    {
+      "time": "2026-08-09T15:01:18Z",
+      "activityElapsedS": 79238,
+      "textureTime": "2026-08-09T15:01:18Z",
+      "url": "/fog/frames/20260809T150118Z.png"
+    },
+    {
+      "time": "2026-08-09T15:06:18Z",
+      "activityElapsedS": 79538,
+      "textureTime": "2026-08-09T15:06:18Z",
+      "url": "/fog/frames/20260809T150618Z.png"
+    },
+    {
+      "time": "2026-08-09T15:11:18Z",
+      "activityElapsedS": 79838,
+      "textureTime": "2026-08-09T15:11:18Z",
+      "url": "/fog/frames/20260809T151118Z.png"
+    },
+    {
+      "time": "2026-08-09T15:16:18Z",
+      "activityElapsedS": 80138,
+      "textureTime": "2026-08-09T15:16:18Z",
+      "url": "/fog/frames/20260809T151618Z.png"
+    },
+    {
+      "time": "2026-08-09T15:21:18Z",
+      "activityElapsedS": 80438,
+      "textureTime": "2026-08-09T15:21:18Z",
+      "url": "/fog/frames/20260809T152118Z.png"
+    },
+    {
+      "time": "2026-08-09T15:26:18Z",
+      "activityElapsedS": 80738,
+      "textureTime": "2026-08-09T15:26:18Z",
+      "url": "/fog/frames/20260809T152618Z.png"
+    },
+    {
+      "time": "2026-08-09T15:31:18Z",
+      "activityElapsedS": 81038,
+      "textureTime": "2026-08-09T15:31:18Z",
+      "url": "/fog/frames/20260809T153118Z.png"
+    },
+    {
+      "time": "2026-08-09T15:36:18Z",
+      "activityElapsedS": 81338,
+      "textureTime": "2026-08-09T15:36:18Z",
+      "url": "/fog/frames/20260809T153618Z.png"
+    },
+    {
+      "time": "2026-08-09T15:41:18Z",
+      "activityElapsedS": 81638,
+      "textureTime": "2026-08-09T15:41:18Z",
+      "url": "/fog/frames/20260809T154118Z.png"
+    },
+    {
+      "time": "2026-08-09T15:46:18Z",
+      "activityElapsedS": 81938,
+      "textureTime": "2026-08-09T15:46:18Z",
+      "url": "/fog/frames/20260809T154618Z.png"
+    },
+    {
+      "time": "2026-08-09T15:51:18Z",
+      "activityElapsedS": 82238,
+      "textureTime": "2026-08-09T15:51:18Z",
+      "url": "/fog/frames/20260809T155118Z.png"
+    },
+    {
+      "time": "2026-08-09T15:56:18Z",
+      "activityElapsedS": 82538,
+      "textureTime": "2026-08-09T15:56:18Z",
+      "url": "/fog/frames/20260809T155618Z.png"
+    },
+    {
+      "time": "2026-08-09T16:01:18Z",
+      "activityElapsedS": 82838,
+      "textureTime": "2026-08-09T16:01:18Z",
+      "url": "/fog/frames/20260809T160118Z.png"
+    },
+    {
+      "time": "2026-08-09T16:06:18Z",
+      "activityElapsedS": 83138,
+      "textureTime": "2026-08-09T16:06:18Z",
+      "url": "/fog/frames/20260809T160618Z.png"
+    },
+    {
+      "time": "2026-08-09T16:11:18Z",
+      "activityElapsedS": 83438,
+      "textureTime": "2026-08-09T16:11:18Z",
+      "url": "/fog/frames/20260809T161118Z.png"
+    },
+    {
+      "time": "2026-08-09T16:16:18Z",
+      "activityElapsedS": 83738,
+      "textureTime": "2026-08-09T16:16:18Z",
+      "url": "/fog/frames/20260809T161618Z.png"
+    },
+    {
+      "time": "2026-08-09T16:21:18Z",
+      "activityElapsedS": 84038,
+      "textureTime": "2026-08-09T16:21:18Z",
+      "url": "/fog/frames/20260809T162118Z.png"
+    },
+    {
+      "time": "2026-08-09T16:26:18Z",
+      "activityElapsedS": 84338,
+      "textureTime": "2026-08-09T16:26:18Z",
+      "url": "/fog/frames/20260809T162618Z.png"
+    },
+    {
+      "time": "2026-08-09T16:31:18Z",
+      "activityElapsedS": 84638,
+      "textureTime": "2026-08-09T16:31:18Z",
+      "url": "/fog/frames/20260809T163118Z.png"
+    },
+    {
+      "time": "2026-08-09T16:36:18Z",
+      "activityElapsedS": 84938,
+      "textureTime": "2026-08-09T16:36:18Z",
+      "url": "/fog/frames/20260809T163618Z.png"
+    },
+    {
+      "time": "2026-08-09T16:41:18Z",
+      "activityElapsedS": 85238,
+      "textureTime": "2026-08-09T16:41:18Z",
+      "url": "/fog/frames/20260809T164118Z.png"
+    },
+    {
+      "time": "2026-08-09T16:46:18Z",
+      "activityElapsedS": 85538,
+      "textureTime": "2026-08-09T16:46:18Z",
+      "url": "/fog/frames/20260809T164618Z.png"
+    },
+    {
+      "time": "2026-08-09T16:51:18Z",
+      "activityElapsedS": 85838,
+      "textureTime": "2026-08-09T16:51:18Z",
+      "url": "/fog/frames/20260809T165118Z.png"
+    },
+    {
+      "time": "2026-08-09T16:56:18Z",
+      "activityElapsedS": 86138,
+      "textureTime": "2026-08-09T16:56:18Z",
+      "url": "/fog/frames/20260809T165618Z.png"
+    },
+    {
+      "time": "2026-08-09T17:01:18Z",
+      "activityElapsedS": 86438,
+      "textureTime": "2026-08-09T17:01:18Z",
+      "url": "/fog/frames/20260809T170118Z.png"
+    },
+    {
+      "time": "2026-08-09T17:06:18Z",
+      "activityElapsedS": 86738,
+      "textureTime": "2026-08-09T17:06:18Z",
+      "url": "/fog/frames/20260809T170618Z.png"
+    },
+    {
+      "time": "2026-08-09T17:11:18Z",
+      "activityElapsedS": 87038,
+      "textureTime": "2026-08-09T17:11:18Z",
+      "url": "/fog/frames/20260809T171118Z.png"
+    },
+    {
+      "time": "2026-08-09T17:16:18Z",
+      "activityElapsedS": 87338,
+      "textureTime": "2026-08-09T17:16:18Z",
+      "url": "/fog/frames/20260809T171618Z.png"
+    },
+    {
+      "time": "2026-08-09T17:21:18Z",
+      "activityElapsedS": 87638,
+      "textureTime": "2026-08-09T17:21:18Z",
+      "url": "/fog/frames/20260809T172118Z.png"
+    },
+    {
+      "time": "2026-08-09T17:26:18Z",
+      "activityElapsedS": 87938,
+      "textureTime": "2026-08-09T17:26:18Z",
+      "url": "/fog/frames/20260809T172618Z.png"
+    },
+    {
+      "time": "2026-08-09T17:31:18Z",
+      "activityElapsedS": 88238,
+      "textureTime": "2026-08-09T17:31:18Z",
+      "url": "/fog/frames/20260809T173118Z.png"
+    },
+    {
+      "time": "2026-08-09T17:36:18Z",
+      "activityElapsedS": 88538,
+      "textureTime": "2026-08-09T17:36:18Z",
+      "url": "/fog/frames/20260809T173618Z.png"
+    },
+    {
+      "time": "2026-08-09T17:41:18Z",
+      "activityElapsedS": 88838,
+      "textureTime": "2026-08-09T17:41:18Z",
+      "url": "/fog/frames/20260809T174118Z.png"
+    },
+    {
+      "time": "2026-08-09T17:46:18Z",
+      "activityElapsedS": 89138,
+      "textureTime": "2026-08-09T17:46:18Z",
+      "url": "/fog/frames/20260809T174618Z.png"
+    },
+    {
+      "time": "2026-08-09T17:51:18Z",
+      "activityElapsedS": 89438,
+      "textureTime": "2026-08-09T17:51:18Z",
+      "url": "/fog/frames/20260809T175118Z.png"
+    },
+    {
+      "time": "2026-08-09T17:56:18Z",
+      "activityElapsedS": 89738,
+      "textureTime": "2026-08-09T17:56:18Z",
+      "url": "/fog/frames/20260809T175618Z.png"
+    },
+    {
+      "time": "2026-08-09T18:01:18Z",
+      "activityElapsedS": 90038,
+      "textureTime": "2026-08-09T18:01:18Z",
+      "url": "/fog/frames/20260809T180118Z.png"
+    },
+    {
+      "time": "2026-08-09T18:06:18Z",
+      "activityElapsedS": 90338,
+      "textureTime": "2026-08-09T18:06:18Z",
+      "url": "/fog/frames/20260809T180618Z.png"
+    },
+    {
+      "time": "2026-08-09T18:11:18Z",
+      "activityElapsedS": 90638,
+      "textureTime": "2026-08-09T18:11:18Z",
+      "url": "/fog/frames/20260809T181118Z.png"
+    },
+    {
+      "time": "2026-08-09T18:16:18Z",
+      "activityElapsedS": 90938,
+      "textureTime": "2026-08-09T18:16:18Z",
+      "url": "/fog/frames/20260809T181618Z.png"
+    },
+    {
+      "time": "2026-08-09T18:21:18Z",
+      "activityElapsedS": 91238,
+      "textureTime": "2026-08-09T18:21:18Z",
+      "url": "/fog/frames/20260809T182118Z.png"
+    },
+    {
+      "time": "2026-08-09T18:26:18Z",
+      "activityElapsedS": 91538,
+      "textureTime": "2026-08-09T18:26:18Z",
+      "url": "/fog/frames/20260809T182618Z.png"
+    },
+    {
+      "time": "2026-08-09T18:31:18Z",
+      "activityElapsedS": 91838,
+      "textureTime": "2026-08-09T18:31:18Z",
+      "url": "/fog/frames/20260809T183118Z.png"
+    },
+    {
+      "time": "2026-08-09T18:36:18Z",
+      "activityElapsedS": 92138,
+      "textureTime": "2026-08-09T18:36:18Z",
+      "url": "/fog/frames/20260809T183618Z.png"
+    },
+    {
+      "time": "2026-08-09T18:41:18Z",
+      "activityElapsedS": 92438,
+      "textureTime": "2026-08-09T18:41:18Z",
+      "url": "/fog/frames/20260809T184118Z.png"
+    }
+  ],
+  "gaps": [
+    {
+      "from": "2026-08-08T17:16:17Z",
+      "to": "2026-08-08T17:51:17Z",
+      "seconds": 2100
+    },
+    {
+      "from": "2026-08-08T17:51:17Z",
+      "to": "2026-08-08T18:21:17Z",
+      "seconds": 1800
+    },
+    {
+      "from": "2026-08-08T18:36:17Z",
+      "to": "2026-08-08T19:16:17Z",
+      "seconds": 2400
+    },
+    {
+      "from": "2026-08-08T19:21:17Z",
+      "to": "2026-08-08T19:46:17Z",
+      "seconds": 1500
+    },
+    {
+      "from": "2026-08-08T20:31:17Z",
+      "to": "2026-08-08T21:01:17Z",
+      "seconds": 1800
+    },
+    {
+      "from": "2026-08-08T21:01:17Z",
+      "to": "2026-08-08T21:26:17Z",
+      "seconds": 1500
+    },
+    {
+      "from": "2026-08-08T21:46:17Z",
+      "to": "2026-08-08T22:11:17Z",
+      "seconds": 1500
+    },
+    {
+      "from": "2026-08-09T03:31:17Z",
+      "to": "2026-08-09T04:06:17Z",
+      "seconds": 2100
+    },
+    {
+      "from": "2026-08-09T04:16:17Z",
+      "to": "2026-08-09T05:21:18Z",
+      "seconds": 3901
+    }
+  ],
+  "failedFrames": [],
+  "generatedAt": "2026-08-11T18:00:52Z"
+}

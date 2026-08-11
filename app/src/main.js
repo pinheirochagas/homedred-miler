@@ -1,6 +1,6 @@
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import './style.css?v=20260811-profile-type'
+import './style.css?v=20260811-metric-control-pop'
 import {
   course, ptAt, fmtFt, fmtMi,
 } from './data.js'
@@ -13,6 +13,7 @@ import {
   activityStartMs,
   activityFinishMs,
   activityPointAtMi,
+  activityPointAtElapsed,
   activityElapsedAtMi,
   activityClockAtMi,
   activityMiAtTime,
@@ -68,6 +69,16 @@ let selectedMediaId = null
 let repositionMediaPopup = () => {}
 const mediaWidths = new Map()
 const visibleFacilityTypes = new Set()
+let atmosphereMode = null
+const atmosphereArchives = new Map()
+let atmosphereFrames = []
+let atmosphereFrameIndex = 0
+let atmosphereCursorS = 0
+let atmospherePlaying = false
+let atmospherePlaybackTimer = null
+let atmosphereRequestId = 0
+let atmosphereFrontSlot = 0
+let atmosphereRenderedUrl = null
 
 const plannedToActivityMi = mi => mi / course.totalMi * activityTotalMi
 const waypoints = matchActivityCheckpoints(plannedWaypoints.map(waypoint => {
@@ -235,6 +246,7 @@ const C = {
   ink: '#000000',
   gray: '#8a8a8a',
   location: '#4f8297',
+  fog: '#56758a',
   highlight: '#f1f17c',
   // Calibrated darker for the narrow WebGL stroke so it reads like the
   // broader profile wash against a gray basemap.
@@ -286,6 +298,7 @@ function grayscaleStyleValue(value) {
 
 function desaturateBasemap() {
   for (const layer of map.getStyle().layers) {
+    if (layer.id.startsWith('atmosphere-')) continue
     if (layer.type === 'raster') {
       map.setPaintProperty(layer.id, 'raster-saturation', -1)
     }
@@ -333,6 +346,552 @@ const bbox = (() => {
   return [[w, s], [e, n]]
 })()
 
+const ATMOSPHERE_SOURCE_IDS = ['atmosphere-frame-a', 'atmosphere-frame-b']
+const ATMOSPHERE_LAYER_IDS = ['atmosphere-frame-a', 'atmosphere-frame-b']
+const WIND_SOURCE_ID = 'atmosphere-wind-vectors'
+const WIND_LAYER_ID = 'atmosphere-wind-arrows'
+const WIND_ARROW_IMAGE_ID = 'atmosphere-wind-arrow'
+const ATMOSPHERE_UI = {
+  fog: {
+    button: '#ctl-fog',
+    label: 'IFR fog probability',
+    color: '#56758a',
+    gradient: 'linear-gradient(90deg, #496a82, #b4c9d5)',
+    legendText: 'likelihood · cloud texture',
+    sourceLabel: 'GOES-18 · NOAA / SSEC RealEarth',
+    sourceUrl: 'https://realearth.ssec.wisc.edu/',
+    fallbackOpacity: 0.68,
+  },
+  temperature: {
+    button: '#ctl-temperature',
+    label: '2 m air temperature',
+    color: '#b85b35',
+    gradient: 'linear-gradient(90deg, #fee08b, #fdae61, #d73027)',
+    legendText: '41 · 68 · 95 °F',
+    sourceLabel: 'NOAA RTMA · NCSCO',
+    sourceUrl: 'https://registry.opendata.aws/noaa-rtma/',
+    fallbackOpacity: 0.58,
+  },
+  wind: {
+    button: '#ctl-wind',
+    label: '10 m wind direction + speed',
+    color: '#4f8297',
+    gradient: 'linear-gradient(90deg, #6c2d8d, #3d6fa2, #43b7b0)',
+    legendText: '0 · 17 · 34+ mph',
+    sourceLabel: 'NOAA HRRR · Open-Meteo',
+    sourceUrl: 'https://open-meteo.com/',
+    fallbackOpacity: 0.9,
+  },
+}
+const atmosphereClockFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles',
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+})
+
+function activeAtmosphereArchive() {
+  return atmosphereMode ? atmosphereArchives.get(atmosphereMode) : null
+}
+
+function atmosphereCoordinates(archive = activeAtmosphereArchive()) {
+  if (!archive?.bounds) return []
+  const [west, south, east, north] = archive.bounds
+  return [
+    [west, north],
+    [east, north],
+    [east, south],
+    [west, south],
+  ]
+}
+
+function atmosphereFrame() {
+  return atmosphereFrames[atmosphereFrameIndex] || atmosphereFrames[0] || null
+}
+
+function atmosphereElapsedS() {
+  const elapsedS = Number(atmosphereFrame()?.activityElapsedS)
+  return Math.max(0, Math.min(activitySummary.elapsedS, elapsedS || 0))
+}
+
+function nearestAtmosphereFrameIndex(elapsedS) {
+  let nearestIndex = 0
+  let nearestDifference = Infinity
+  atmosphereFrames.forEach((frame, index) => {
+    const difference = Math.abs(Number(frame.activityElapsedS) - elapsedS)
+    if (difference < nearestDifference) {
+      nearestDifference = difference
+      nearestIndex = index
+    }
+  })
+  return nearestIndex
+}
+
+function atmosphereTimeGeojson() {
+  if (!atmosphereMode || !atmosphereFrame()) return EMPTY
+  const point = activityPointAtElapsed(atmosphereElapsedS())
+  return {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Point', coordinates: [point.lon, point.lat] },
+    }],
+  }
+}
+
+function windVectorGeojson() {
+  if (atmosphereMode !== 'wind') return EMPTY
+  const vectors = atmosphereFrame()?.vectors || []
+  return {
+    type: 'FeatureCollection',
+    features: vectors.map(([lon, lat, speedMph, bearing]) => ({
+      type: 'Feature',
+      properties: { speedMph, bearing },
+      geometry: { type: 'Point', coordinates: [lon, lat] },
+    })),
+  }
+}
+
+function addWindArrowImage() {
+  if (map.hasImage(WIND_ARROW_IMAGE_ID)) return
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const context = canvas.getContext('2d')
+  context.fillStyle = '#ffffff'
+  context.beginPath()
+  context.moveTo(32, 4)
+  context.lineTo(17, 23)
+  context.lineTo(27, 20)
+  context.lineTo(27, 58)
+  context.quadraticCurveTo(27, 61, 30, 61)
+  context.lineTo(34, 61)
+  context.quadraticCurveTo(37, 61, 37, 58)
+  context.lineTo(37, 20)
+  context.lineTo(47, 23)
+  context.closePath()
+  context.fill()
+  map.addImage(
+    WIND_ARROW_IMAGE_ID,
+    context.getImageData(0, 0, canvas.width, canvas.height),
+    { sdf: true, pixelRatio: 2 },
+  )
+}
+
+function addAtmosphereWindLayer(firstLabel) {
+  const archive = atmosphereArchives.get('wind')
+  if (!archive || map.getSource(WIND_SOURCE_ID)) return
+  addWindArrowImage()
+  map.addSource(WIND_SOURCE_ID, { type: 'geojson', data: windVectorGeojson() })
+  map.addLayer({
+    id: WIND_LAYER_ID,
+    type: 'symbol',
+    source: WIND_SOURCE_ID,
+    layout: {
+      'icon-image': WIND_ARROW_IMAGE_ID,
+      'icon-size': [
+        'interpolate', ['linear'], ['get', 'speedMph'],
+        0, 0.48,
+        5, 0.66,
+        15, 0.9,
+        30, 1.12,
+      ],
+      'icon-rotate': ['get', 'bearing'],
+      'icon-rotation-alignment': 'map',
+      'icon-pitch-alignment': 'map',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'icon-keep-upright': false,
+    },
+    paint: {
+      'icon-color': [
+        'interpolate', ['linear'], ['get', 'speedMph'],
+        0, '#512271',
+        8, '#425491',
+        18, '#287f96',
+        34, '#169d91',
+      ],
+      'icon-opacity': atmosphereMode === 'wind' ? archive.opacity : 0,
+      'icon-halo-color': 'rgba(255, 255, 255, 0.9)',
+      'icon-halo-width': 0.85,
+      'icon-emissive-strength': 1,
+    },
+  }, firstLabel)
+}
+
+function syncAtmosphereLayerVisibility() {
+  if (!map) return
+  const archive = activeAtmosphereArchive()
+  const opacity = Number.isFinite(archive?.opacity)
+    ? archive.opacity
+    : ATMOSPHERE_UI[atmosphereMode]?.fallbackOpacity || 0
+  ATMOSPHERE_LAYER_IDS.forEach((layerId, slot) => {
+    if (!map.getLayer(layerId)) return
+    map.setPaintProperty(
+      layerId,
+      'raster-saturation',
+      0,
+    )
+    map.setPaintProperty(
+      layerId,
+      'raster-opacity',
+      atmosphereMode && archive?.renderType !== 'vectors' &&
+        slot === atmosphereFrontSlot ? opacity : 0,
+    )
+  })
+  map.getSource(WIND_SOURCE_ID)?.setData(windVectorGeojson())
+  if (map.getLayer(WIND_LAYER_ID)) {
+    map.setLayoutProperty(
+      WIND_LAYER_ID,
+      'visibility',
+      atmosphereMode === 'wind' ? 'visible' : 'none',
+    )
+    map.setPaintProperty(
+      WIND_LAYER_ID,
+      'icon-opacity',
+      atmosphereMode === 'wind' ? Math.min(1, opacity + 0.08) : 0,
+    )
+    if (atmosphereMode === 'wind') {
+      const beforeLayer = map.getLayer('media-connectors-case')
+        ? 'media-connectors-case'
+        : map.getLayer('atmosphere-time-halo') ? 'atmosphere-time-halo' : undefined
+      if (beforeLayer) map.moveLayer(WIND_LAYER_ID, beforeLayer)
+      else map.moveLayer(WIND_LAYER_ID)
+    }
+  }
+  map.getSource('atmosphere-time-position')?.setData(atmosphereTimeGeojson())
+}
+
+function addAtmosphereLayers() {
+  if (!atmosphereArchives.size) return
+  const firstLabel = map.getStyle().layers.find(layer => layer.type === 'symbol')?.id
+  const activeArchive = activeAtmosphereArchive()
+  const rasterArchive = activeArchive && activeArchive.renderType !== 'vectors'
+    ? activeArchive
+    : [...atmosphereArchives.values()].find(archive =>
+        archive.frames?.some(frame => frame.url))
+  const frame = rasterArchive === activeArchive
+    ? atmosphereFrame()
+    : rasterArchive?.frames?.find(candidate => candidate.url)
+
+  if (rasterArchive && frame?.url && !map.getSource(ATMOSPHERE_SOURCE_IDS[0])) {
+    const coordinates = atmosphereCoordinates(rasterArchive)
+    ATMOSPHERE_SOURCE_IDS.forEach((sourceId, slot) => {
+      map.addSource(sourceId, {
+        type: 'image',
+        url: frame.url,
+        coordinates,
+      })
+      map.addLayer({
+        id: ATMOSPHERE_LAYER_IDS[slot],
+        type: 'raster',
+        source: sourceId,
+        paint: {
+          'raster-opacity': 0,
+          'raster-opacity-transition': { duration: 220, delay: 0 },
+          'raster-fade-duration': 0,
+          'raster-resampling': 'linear',
+          'raster-saturation': 0,
+        },
+      }, firstLabel)
+    })
+    atmosphereFrontSlot = 0
+    atmosphereRenderedUrl = frame.url
+  }
+  addAtmosphereWindLayer(firstLabel)
+  syncAtmosphereLayerVisibility()
+}
+
+function addAtmosphereTimeLayers() {
+  if (!atmosphereArchives.size || map.getSource('atmosphere-time-position')) return
+  map.addSource('atmosphere-time-position', {
+    type: 'geojson',
+    data: atmosphereTimeGeojson(),
+  })
+  map.addLayer({
+    id: 'atmosphere-time-halo',
+    type: 'circle',
+    source: 'atmosphere-time-position',
+    paint: {
+      'circle-radius': 7,
+      'circle-color': C.paper,
+      'circle-opacity': 0.96,
+      'circle-stroke-width': 1,
+      'circle-stroke-color': C.ink,
+      'circle-emissive-strength': 1,
+    },
+  })
+  map.addLayer({
+    id: 'atmosphere-time-dot',
+    type: 'circle',
+    source: 'atmosphere-time-position',
+    paint: {
+      'circle-radius': 3.5,
+      'circle-color': ATMOSPHERE_UI[atmosphereMode]?.color || C.fog,
+      'circle-emissive-strength': 1,
+    },
+  })
+}
+
+function preloadAtmosphereFrame(index) {
+  const frame = atmosphereFrames[index]
+  if (!frame?.url) return
+  const image = new Image()
+  image.src = frame.url
+}
+
+function updateAtmosphereReadout() {
+  const frame = atmosphereFrame()
+  if (!frame) return
+  const elapsedS = atmosphereElapsedS()
+  atmosphereCursorS = elapsedS
+  const point = activityPointAtElapsed(elapsedS)
+  const clock = atmosphereClockFormatter.format(new Date(frame.time))
+  const slider = $('#atmosphere-time')
+  const progress = elapsedS / activitySummary.elapsedS * 100
+
+  $('#atmosphere-clock').textContent = clock
+  $('#atmosphere-position').textContent =
+    `mi ${fmtMi(point.mi)} · ${activityDuration(elapsedS)} elapsed`
+  slider.value = String(Math.round(elapsedS))
+  slider.style.setProperty('--atmosphere-progress', `${progress}%`)
+  slider.setAttribute('aria-valuetext', `${clock}, activity mile ${fmtMi(point.mi)}`)
+}
+
+function showAtmosphereFrame(index) {
+  if (!atmosphereMode || !atmosphereFrames.length) return
+  atmosphereFrameIndex = Math.max(
+    0,
+    Math.min(atmosphereFrames.length - 1, Math.round(index)),
+  )
+  const frame = atmosphereFrame()
+  updateAtmosphereReadout()
+  map?.getSource('atmosphere-time-position')?.setData(atmosphereTimeGeojson())
+  preloadAtmosphereFrame(atmosphereFrameIndex - 1)
+  preloadAtmosphereFrame(atmosphereFrameIndex + 1)
+
+  const archive = activeAtmosphereArchive()
+  if (archive?.renderType === 'vectors') {
+    syncAtmosphereLayerVisibility()
+    return
+  }
+  if (!frame.url) return
+  if (!map?.getSource(ATMOSPHERE_SOURCE_IDS[0])) return
+  if (frame.url === atmosphereRenderedUrl) {
+    syncAtmosphereLayerVisibility()
+    return
+  }
+
+  const requestId = ++atmosphereRequestId
+  const image = new Image()
+  image.decoding = 'async'
+  image.onload = () => {
+    if (requestId !== atmosphereRequestId || !atmosphereMode) return
+    const nextSlot = atmosphereFrontSlot === 0 ? 1 : 0
+    const source = map?.getSource(ATMOSPHERE_SOURCE_IDS[nextSlot])
+    if (!source) return
+    source.updateImage({ url: frame.url, coordinates: atmosphereCoordinates(archive) })
+    requestAnimationFrame(() => {
+      if (requestId !== atmosphereRequestId || !atmosphereMode) return
+      atmosphereFrontSlot = nextSlot
+      atmosphereRenderedUrl = frame.url
+      syncAtmosphereLayerVisibility()
+    })
+  }
+  image.onerror = () => {
+    if (requestId === atmosphereRequestId) {
+      $('#atmosphere-position').textContent = 'frame unavailable'
+    }
+  }
+  image.src = frame.url
+}
+
+function showAtmosphereElapsed(elapsedS) {
+  atmosphereCursorS = Math.max(0, Math.min(activitySummary.elapsedS, elapsedS))
+  showAtmosphereFrame(nearestAtmosphereFrameIndex(atmosphereCursorS))
+}
+
+function stopAtmospherePlayback() {
+  atmospherePlaying = false
+  clearInterval(atmospherePlaybackTimer)
+  atmospherePlaybackTimer = null
+  const button = $('#atmosphere-play')
+  button.textContent = 'play'
+  button.setAttribute('aria-label', 'Play atmosphere archive')
+}
+
+function startAtmospherePlayback() {
+  if (!atmosphereMode || atmosphereFrames.length < 2) return
+  atmospherePlaying = true
+  const button = $('#atmosphere-play')
+  button.textContent = 'pause'
+  button.setAttribute('aria-label', 'Pause atmosphere archive')
+  clearInterval(atmospherePlaybackTimer)
+  const cadence = activeAtmosphereArchive()?.expectedCadenceS || 300
+  const intervalMs = cadence > 15 * 60 ? 680 : 240
+  atmospherePlaybackTimer = setInterval(() => {
+    const next = atmosphereFrameIndex >= atmosphereFrames.length - 1
+      ? 0
+      : atmosphereFrameIndex + 1
+    showAtmosphereFrame(next)
+  }, intervalMs)
+}
+
+function configureAtmospherePlayer() {
+  const archive = activeAtmosphereArchive()
+  const ui = ATMOSPHERE_UI[atmosphereMode]
+  if (!archive || !ui) return
+  document.documentElement.style.setProperty('--atmosphere', ui.color)
+  document.documentElement.style.setProperty('--atmosphere-gradient', ui.gradient)
+  $('#atmosphere-layer-label').textContent = ui.label
+
+  const scale = $('#atmosphere-scale')
+  scale.querySelector('span').textContent = ui.legendText
+  const source = $('#atmosphere-source')
+  source.textContent = ui.sourceLabel
+  source.href = ui.sourceUrl
+
+  const player = $('#atmosphere-player')
+  player.title = `${archive.description || ''} ${archive.caveat || ''}`.trim()
+  if (archive.caveat) player.setAttribute('aria-description', archive.caveat)
+  else player.removeAttribute('aria-description')
+  if (map?.getLayer('atmosphere-time-dot')) {
+    map.setPaintProperty('atmosphere-time-dot', 'circle-color', ui.color)
+  }
+}
+
+function setAtmosphereMode(mode) {
+  if (mode && !atmosphereArchives.has(mode)) return
+  stopAtmospherePlayback()
+  atmosphereRequestId += 1
+  atmosphereMode = mode
+  atmosphereFrames = activeAtmosphereArchive()?.frames || []
+  atmosphereFrameIndex = atmosphereFrames.length
+    ? nearestAtmosphereFrameIndex(atmosphereCursorS)
+    : 0
+  atmosphereRenderedUrl = null
+
+  for (const [key, ui] of Object.entries(ATMOSPHERE_UI)) {
+    const button = $(ui.button)
+    const on = key === atmosphereMode
+    button.classList.toggle('on', on)
+    button.setAttribute('aria-pressed', String(on))
+  }
+
+  $('#atmosphere-player').hidden = !atmosphereMode
+  document.body.classList.toggle('atmosphere-on', Boolean(atmosphereMode))
+  for (const key of Object.keys(ATMOSPHERE_UI)) {
+    document.body.classList.toggle(`atmosphere-${key}`, key === atmosphereMode)
+  }
+
+  ATMOSPHERE_LAYER_IDS.forEach(layerId => {
+    if (map?.getLayer(layerId)) map.setPaintProperty(layerId, 'raster-opacity', 0)
+  })
+  if (map?.getLayer(WIND_LAYER_ID)) {
+    map.setPaintProperty(WIND_LAYER_ID, 'icon-opacity', 0)
+  }
+
+  if (atmosphereMode) {
+    if (map?.isStyleLoaded()) {
+      addAtmosphereLayers()
+      addAtmosphereTimeLayers()
+    }
+    configureAtmospherePlayer()
+    stopOrbit()
+    showAtmosphereFrame(atmosphereFrameIndex)
+  } else {
+    syncAtmosphereLayerVisibility()
+  }
+}
+
+function registerAtmosphereArchive(mode, archive, root = archive) {
+  const frames = (archive.frames || [])
+      .map(frame => ({
+        ...frame,
+        url: mode === 'fog' && frame.url
+          ? `${frame.url}${frame.url.includes('?') ? '&' : '?'}v=blue-fog-20260811`
+          : frame.url,
+        timeMs: new Date(frame.time).getTime(),
+      }))
+      .filter(frame => Number.isFinite(frame.timeMs))
+      .sort((a, b) => a.timeMs - b.timeMs)
+  if (!frames.length) throw new Error(`${mode} archive contains no frames`)
+
+  const normalized = {
+    ...archive,
+    bounds: archive.bounds || root.bounds,
+    source: archive.source || root.source,
+    opacity: Number.isFinite(archive.opacity)
+      ? archive.opacity
+      : ATMOSPHERE_UI[mode].fallbackOpacity,
+    frames,
+  }
+  atmosphereArchives.set(mode, normalized)
+
+  const button = $(ATMOSPHERE_UI[mode].button)
+  button.disabled = false
+  const gaps = archive.gaps?.length || 0
+  button.title = `${frames.length} archived frames · ${gaps} source gaps`
+}
+
+async function fetchArchive(url, label) {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`${label} archive returned ${response.status}`)
+  return response.json()
+}
+
+async function loadAtmosphereArchives() {
+  const [fogResult, weatherResult] = await Promise.allSettled([
+    fetchArchive('/fog/manifest.json?v=blue-fog-20260811', 'Fog'),
+    fetchArchive('/weather/manifest.json?v=warm-native-vector-wind-20260811', 'Weather'),
+  ])
+
+  if (fogResult.status === 'fulfilled') {
+    try {
+      registerAtmosphereArchive('fog', fogResult.value)
+    } catch (error) {
+      console.error(error)
+    }
+  } else {
+    console.error(fogResult.reason)
+    $('#ctl-fog').textContent = 'fog unavailable'
+    $('#ctl-fog').title = fogResult.reason.message
+  }
+
+  if (weatherResult.status === 'fulfilled') {
+    for (const mode of ['temperature', 'wind']) {
+      try {
+        registerAtmosphereArchive(
+          mode,
+          weatherResult.value.layers?.[mode] || {},
+          weatherResult.value,
+        )
+      } catch (error) {
+        console.error(error)
+        $(ATMOSPHERE_UI[mode].button).textContent = `${mode} unavailable`
+        $(ATMOSPHERE_UI[mode].button).title = error.message
+      }
+    }
+  } else {
+    console.error(weatherResult.reason)
+    for (const mode of ['temperature', 'wind']) {
+      $(ATMOSPHERE_UI[mode].button).textContent = `${mode} unavailable`
+      $(ATMOSPHERE_UI[mode].button).title = weatherResult.reason.message
+    }
+  }
+
+  const slider = $('#atmosphere-time')
+  slider.max = String(Math.round(activitySummary.elapsedS))
+  slider.step = '300'
+  if (map?.getSource('activity-track')) {
+    addAtmosphereLayers()
+    addAtmosphereTimeLayers()
+  }
+}
+
 function addCourseLayers() {
   desaturateBasemap()
 
@@ -341,6 +900,7 @@ function addCourseLayers() {
   // dropped: transit, airports, house numbers, road shields.
   for (const lyr of map.getStyle().layers) {
     if (lyr.type !== 'symbol') continue
+    if (lyr.id.startsWith('atmosphere-')) continue
     if (/^(settlement-|water-|waterway-|natural-|poi-label|road-label|path-pedestrian-label|contour-label)/.test(lyr.id)) continue
     map.setLayoutProperty(lyr.id, 'visibility', 'none')
   }
@@ -1322,15 +1882,17 @@ function setGhost(mi) {
 // masthead sits over the map top-left; on the stacked mobile layout it spans the top
 const fitPad = () =>
   matchMedia('(max-width: 940px)').matches
-    ? { top: 205, bottom: 30, left: 24, right: 24 }
-    : { top: 60, bottom: 70, left: 240, right: 70 }
+    ? { top: 205, bottom: atmosphereMode ? 120 : 30, left: 24, right: 24 }
+    : { top: 60, bottom: atmosphereMode ? 125 : 70, left: 240, right: 70 }
 
 let popup = null
 let mediaPopup = null
 if (map) {
   map.on('style.load', async () => {
+    addAtmosphereLayers()
     addCourseLayers()
     addActivityLayers()
+    addAtmosphereTimeLayers()
     addWaypointLayers()
     try {
       await addFacilityLayers()
@@ -1496,6 +2058,20 @@ $('#ctl-media').addEventListener('click', () => {
   updateMediaSources()
   renderProfile()
 })
+for (const mode of Object.keys(ATMOSPHERE_UI)) {
+  $(ATMOSPHERE_UI[mode].button).addEventListener('click', () => {
+    setAtmosphereMode(atmosphereMode === mode ? null : mode)
+  })
+}
+$('#atmosphere-time').addEventListener('input', event => {
+  stopAtmospherePlayback()
+  showAtmosphereElapsed(Number(event.target.value))
+})
+$('#atmosphere-play').addEventListener('click', () => {
+  if (atmospherePlaying) stopAtmospherePlayback()
+  else startAtmospherePlayback()
+})
+loadAtmosphereArchives()
 for (const [type, id] of [
   ['water', '#ctl-water'],
   ['bathrooms', '#ctl-bathrooms'],

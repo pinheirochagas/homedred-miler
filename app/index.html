@@ -36,11 +36,45 @@
       <button id="ctl-orbit">orbit</button>
       <button id="ctl-fit">frame</button>
       <button id="ctl-location" aria-live="polite">my location</button>
-      <button id="ctl-media" class="layer-start on" aria-pressed="true">media</button>
-      <button id="ctl-water" aria-pressed="false">water</button>
-      <button id="ctl-bathrooms" aria-pressed="false">bathrooms</button>
-      <button id="ctl-parking" aria-pressed="false">parking</button>
+      <button id="ctl-media" class="layer-start layer-toggle on" aria-pressed="true">media</button>
+      <button id="ctl-fog" class="layer-toggle" aria-pressed="false" disabled>fog</button>
+      <button id="ctl-temperature" class="layer-toggle" aria-pressed="false" disabled>temperature</button>
+      <button id="ctl-wind" class="layer-toggle" aria-pressed="false" disabled>wind</button>
+      <button id="ctl-water" class="layer-toggle" aria-pressed="false">water</button>
+      <button id="ctl-bathrooms" class="layer-toggle" aria-pressed="false">bathrooms</button>
+      <button id="ctl-parking" class="layer-toggle" aria-pressed="false">parking</button>
     </nav>
+
+    <section id="atmosphere-player" hidden aria-label="Archived atmosphere playback">
+      <header class="atmosphere-player-head">
+        <div>
+          <span id="atmosphere-layer-label">IFR fog probability</span>
+          <output id="atmosphere-clock" for="atmosphere-time">Sat · 10:01 AM</output>
+        </div>
+        <button id="atmosphere-play" type="button" aria-label="Play atmosphere archive">play</button>
+      </header>
+      <div class="atmosphere-scrub">
+        <input
+          id="atmosphere-time"
+          type="range"
+          min="0"
+          max="92284"
+          step="300"
+          value="0"
+          aria-label="Atmosphere archive time"
+        />
+      </div>
+      <footer class="atmosphere-player-foot">
+        <span id="atmosphere-position">activity start</span>
+        <span id="atmosphere-scale"><i aria-hidden="true"></i><span></span></span>
+        <a
+          id="atmosphere-source"
+          href="https://realearth.ssec.wisc.edu/"
+          target="_blank"
+          rel="noreferrer"
+        >GOES-18 · NOAA / SSEC RealEarth</a>
+      </footer>
+    </section>
   </main>
 
   <aside id="rail">
@@ -113,6 +147,6 @@
 
   <div id="err" hidden></div>
 
-  <script type="module" src="/src/main.js?v=gap-20260811"></script>
+  <script type="module" src="/src/main.js?v=metric-control-pop-20260811"></script>
 </body>
 </html>
