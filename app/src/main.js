@@ -1,19 +1,47 @@
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import './style.css?v=20260809-activity-default'
+import './style.css?v=20260811-profile-type'
 import {
-  course, ptAt, statsBetween, gradeAt, fullLine, sliceLine,
-  idxAt, lat, lon, dist, ele, fmtFt, fmtMi,
+  course, ptAt, fmtFt, fmtMi,
 } from './data.js'
-import activity from './data/activity.json'
-import activitySummaryOverrides from './data/activity-summary.json'
-import { elapsedAt, PACE_BASE_SECS } from './pace.js'
-import { waypoints } from './waypoints.js'
+import {
+  M_PER_MI,
+  FT_PER_M,
+  activitySummary,
+  activityTrack,
+  activityTotalMi,
+  activityStartMs,
+  activityFinishMs,
+  activityPointAtMi,
+  activityElapsedAtMi,
+  activityClockAtMi,
+  activityMiAtTime,
+  activityStatsBetween,
+  activityGradeAt,
+  activityLineFeature,
+  activityEndpointFeatures,
+  activityTimeTicks,
+  activitySliceFeature,
+  nearestActivityPoint,
+  matchActivityCheckpoints,
+  displayMiFromRawM,
+} from './activity-model.js?v=profile-bars-20260810'
+import {
+  EVENT_DEFS,
+  METRIC_BY_KEY,
+  eventRanges,
+  metricColor,
+  metricDomain,
+  metricGradient,
+  metricSeries,
+  metricStatsBetween,
+  metricValueAtMi,
+} from './activity-metrics.js?v=gap-20260811'
+import { waypoints as plannedWaypoints } from './waypoints.js?v=actual-activity-20260810'
 import { facilities } from './facilities.js'
-import { mediaItems } from './media.js?v=20260809-curated'
-import { crewPlan } from './crew-plan.js'
-import { supplyGroups as defaultSupplyGroups } from './supplies.js'
-import { resolveWindow, windowStatus, sunTimes, hhmm } from './sun.js'
+import { mediaItems } from './media.js?v=20260810-actual-activity-4'
+import { crewPlan } from './crew-plan.js?v=20260810-actual-record-6'
+import { sunTimes, hhmm } from './sun.js'
 import waterFacilityIcon from './assets/facilities/facility-water.png'
 import bathroomFacilityIcon from './assets/facilities/facility-bathroom.png'
 import parkingFacilityIcon from './assets/facilities/facility-parking.png'
@@ -21,92 +49,44 @@ import locationRunnerIcon from './assets/location-runner.png'
 
 const TOKEN = import.meta.env.MAPBOX_TOKEN
 const $ = s => document.querySelector(s)
-const activitySummary = { ...activity.summary, ...activitySummaryOverrides }
 
 // ---------------------------------------------------------------- state
-// race day: Sat Aug 8 2026, 10:00 · 24 h target
-// Version the key so older saved starts and targets do not override these defaults.
-const PLAN_STORAGE_KEY = 'hm-plan-v5'
-const saved = JSON.parse(localStorage.getItem(PLAN_STORAGE_KEY) || 'null')
-const plan = {
-  start: saved?.start ? new Date(saved.start) : new Date(2026, 7, 8, 10, 0),
-  hours: saved?.hours || 24,
-}
-const SUPPLY_STORAGE_KEY = 'hm-supplies-v1'
-const SUPPLY_LIST_STORAGE_KEY = 'hm-supply-list-v1'
-const RETIRED_SUPPLY_IDS = new Set([
-  'race-bib',
-  'post-race-t-shirt',
-  'post-race-shorts',
-  'post-race-sweater',
-  'post-race-socks',
-  'post-race-sandals',
-  'recovery-drink',
-])
-const capitalizeSupplyLabel = label =>
-  label ? label.charAt(0).toLocaleUpperCase() + label.slice(1) : label
-const normalizeSupplyItem = item => ({ ...item, label: capitalizeSupplyLabel(item.label) })
-const cloneSupplyGroups = groups => groups.map(group => ({
-  ...group,
-  items: group.items.map(normalizeSupplyItem),
-}))
-let supplyGroups = (() => {
-  try {
-    const savedGroups = JSON.parse(localStorage.getItem(SUPPLY_LIST_STORAGE_KEY) || 'null')
-    if (!Array.isArray(savedGroups)) return cloneSupplyGroups(defaultSupplyGroups)
-    return defaultSupplyGroups.map(defaultGroup => {
-      const savedGroup = savedGroups.find(group => group?.id === defaultGroup.id)
-      if (!Array.isArray(savedGroup?.items)) {
-        return { ...defaultGroup, items: defaultGroup.items.map(item => ({ ...item })) }
-      }
-      const seen = new Set()
-      const items = savedGroup.items.flatMap(item => {
-        if (typeof item?.id !== 'string' || typeof item?.label !== 'string') return []
-        const id = item.id.trim()
-        const label = capitalizeSupplyLabel(item.label.trim())
-        if (!id || !label || seen.has(id) || RETIRED_SUPPLY_IDS.has(id)) return []
-        seen.add(id)
-        return [{ id, label, ...(typeof item.detail === 'string' ? { detail: item.detail } : {}) }]
-      })
-      return { ...defaultGroup, items }
-    })
-  } catch {
-    return cloneSupplyGroups(defaultSupplyGroups)
-  }
-})()
-const allSupplyItems = () => supplyGroups.flatMap(group => group.items)
-const supplyItemIds = new Set(allSupplyItems().map(item => item.id))
-const checkedSupplies = (() => {
-  try {
-    const ids = JSON.parse(localStorage.getItem(SUPPLY_STORAGE_KEY) || '[]')
-    return new Set(Array.isArray(ids) ? ids.filter(id => supplyItemIds.has(id)) : [])
-  } catch {
-    return new Set()
-  }
-})()
-let lastRemovedSupply = null
 let sel = null            // {a, b} miles
 let hoverMi = null
-let filter = 'activity'
+let filter = 'all'
 let renderedFilter = null
+let activeMetric = null
+const activeEvents = new Set()
 const selectedSegmentKeys = new Set()
 let orbiting = false
 let satellite = false
 let relief = false
 let locating = false
 let userLocation = null
-let activityVisible = true
 let mediaVisible = true
 let selectedMediaId = null
 let repositionMediaPopup = () => {}
 const mediaWidths = new Map()
 const visibleFacilityTypes = new Set()
 
-// Ultrapacer-based pace model: per-mile splits scaled to the target finish time.
-// elapsedAt(mi) returns seconds elapsed at that mile in the 24 h base plan;
-// scaling by (plan.hours / 24) adjusts proportionally for any target finish time.
-const etaAt = mi =>
-  new Date(plan.start.getTime() + plan.hours * 3600000 * (elapsedAt(mi) / PACE_BASE_SECS))
+const plannedToActivityMi = mi => mi / course.totalMi * activityTotalMi
+const waypoints = matchActivityCheckpoints(plannedWaypoints.map(waypoint => {
+  const point = ptAt(waypoint.mi)
+  return {
+    ...waypoint,
+    plannedMi: waypoint.mi,
+    expectedMi: plannedToActivityMi(waypoint.mi),
+    lat: point.lat,
+    lon: point.lon,
+  }
+})).map(match => ({
+  ...match,
+  plannedMi: match.plannedMi,
+  mi: match.mi,
+  actualElapsedS: match.elapsedS,
+  actualClock: match.clock,
+}))
+const waypointById = new Map(waypoints.map(waypoint => [waypoint.id, waypoint]))
 
 const crewPoints = waypoints.filter(w => w.crew)
 const crewSegments = crewPoints.slice(0, -1).map((from, i) => {
@@ -119,8 +99,18 @@ const FACILITY_TYPES = {
   bathrooms: { icon: bathroomFacilityIcon },
   parking: { icon: parkingFacilityIcon },
 }
+const ACCESS_WINDOWS = {
+  bridge: 'posted pedestrian hours',
+  'sunrise-sunset': 'sunrise–sunset',
+  '6:00-sunset+60': '06:00–1 h after sunset',
+  '7:00-sunset': '07:00–sunset',
+  '9:00-sunset+60': '09:00–1 h after sunset',
+  '8:00-sunset': '08:00–sunset',
+}
+const factualAccess = waypoint => waypoint.gate
+  ? `${waypoint.bridge ? 'pedestrian crossing' : waypoint.gate.what} · ${ACCESS_WINDOWS[waypoint.gate.spec] || waypoint.gate.spec}`
+  : (waypoint.access || (waypoint.crew ? '24 h access' : 'foot only'))
 const facilityById = new Map(facilities.map(f => [f.id, f]))
-const waypointById = new Map(waypoints.map(w => [w.id, w]))
 const facilityIconKey = type => `facility-${type}`
 
 let facilityIconImagesPromise = null
@@ -173,108 +163,58 @@ const geoDistance = (aLat, aLon, bLat, bLon) => {
 }
 
 const routeMedia = mediaItems.map(item => {
-  const hasExplicitMile = Number.isFinite(item.routeMi)
-  let routeIndex = hasExplicitMile ? idxAt(item.routeMi) : 0
-  let offsetM = hasExplicitMile
-    ? geoDistance(item.lat, item.lon, lat(routeIndex), lon(routeIndex))
-    : Infinity
-  if (!hasExplicitMile) {
-    for (let i = 0; i < course.n; i++) {
-      const meters = geoDistance(item.lat, item.lon, lat(i), lon(i))
-      if (meters < offsetM) {
-        routeIndex = i
-        offsetM = meters
-      }
-    }
-  }
+  const activityMi = Number.isFinite(item.activityDistanceMi)
+    ? displayMiFromRawM(item.activityDistanceMi * M_PER_MI)
+    : activityMiAtTime(item.capturedAt) ??
+      (Number.isFinite(item.routeMi) ? plannedToActivityMi(item.routeMi) : 0)
+  const routePoint = activityPointAtMi(activityMi)
   return {
     ...item,
-    routeIndex,
-    mi: hasExplicitMile ? item.routeMi : dist(routeIndex),
-    routeLat: lat(routeIndex),
-    routeLon: lon(routeIndex),
-    offsetM,
+    mi: activityMi,
+    routeLat: routePoint.lat,
+    routeLon: routePoint.lon,
+    activityElapsedS: routePoint.elapsedS,
+    activityClock: new Date(activityStartMs + routePoint.elapsedS * 1000),
+    offsetM: geoDistance(item.lat, item.lon, routePoint.lat, routePoint.lon),
   }
 })
 const mediaById = new Map(routeMedia.map(item => [item.id, item]))
 const mediaImageKey = id => `media-${id}`
 
-function expectedCourseMile(timeMs) {
-  const start = plan.start.getTime()
-  const finish = start + plan.hours * 3600000
-  if (timeMs < start || timeMs > finish) return null
-  let lo = 0
-  let hi = course.totalMi
-  for (let i = 0; i < 28; i++) {
-    const mid = (lo + hi) / 2
-    if (etaAt(mid).getTime() < timeMs) lo = mid
-    else hi = mid
-  }
-  return (lo + hi) / 2
-}
-
 function nearestCourseLocation(position) {
   const { latitude, longitude, accuracy } = position.coords
-  const distances = new Float64Array(course.n)
-  let best = 0
-  let bestDistance = Infinity
-  for (let i = 0; i < course.n; i++) {
-    const meters = geoDistance(latitude, longitude, lat(i), lon(i))
-    distances[i] = meters
-    if (meters < bestDistance) {
-      best = i
-      bestDistance = meters
-    }
-  }
-
-  // On overlapping out-and-back portions, race time disambiguates which pass
-  // should be marked on the elevation profile.
-  const expectedMi = expectedCourseMile(position.timestamp || Date.now())
-  if (expectedMi != null) {
-    const tolerance = Math.max(8, Math.min(30, Number.isFinite(accuracy) ? accuracy : 8))
-    let progressError = Math.abs(dist(best) - expectedMi)
-    for (let i = 0; i < course.n; i++) {
-      if (distances[i] > bestDistance + tolerance) continue
-      const candidateError = Math.abs(dist(i) - expectedMi)
-      if (candidateError < progressError) {
-        best = i
-        progressError = candidateError
-      }
-    }
-    bestDistance = distances[best]
-  }
+  const nearest = nearestActivityPoint(latitude, longitude)
 
   return {
     lat: latitude,
     lon: longitude,
     accuracy: Number.isFinite(accuracy) ? accuracy : null,
-    routeIndex: best,
-    mi: dist(best),
-    offsetM: bestDistance,
+    routeIndex: nearest.index,
+    mi: nearest.mi,
+    offsetM: nearest.offsetM,
     timestamp: position.timestamp || Date.now(),
   }
 }
 
 function nearestRouteVisit(facility, visitRef) {
   const waypoint = typeof visitRef === 'string' ? waypointById.get(visitRef) : visitRef
-  const searchRadius = typeof visitRef === 'string' ? 1.25 : 0.4
-  const from = idxAt(Math.max(0, waypoint.mi - searchRadius))
-  const to = idxAt(Math.min(course.totalMi, waypoint.mi + searchRadius))
-  let best = from
-  let bestDistance = Infinity
-  for (let i = from; i <= to; i++) {
-    const d = geoDistance(facility.lat, facility.lon, lat(i), lon(i))
-    if (d < bestDistance) {
-      best = i
-      bestDistance = d
-    }
-  }
+  const expectedMi = typeof visitRef === 'string'
+    ? waypoint.mi
+    : plannedToActivityMi(waypoint.mi)
+  const match = nearestActivityPoint(
+    facility.lat,
+    facility.lon,
+    expectedMi,
+    typeof visitRef === 'string' ? 1.25 : 0.5,
+  )
   return {
     id: `${facility.id}:${waypoint.id}`,
     facility,
     waypoint,
-    mi: dist(best),
-    offsetM: bestDistance,
+    mi: match.mi,
+    elapsedS: match.elapsedS,
+    clock: match.clock,
+    offsetM: match.offsetM,
   }
 }
 
@@ -295,7 +235,6 @@ const C = {
   ink: '#000000',
   gray: '#8a8a8a',
   location: '#4f8297',
-  activity: '#0077a8',
   highlight: '#f1f17c',
   // Calibrated darker for the narrow WebGL stroke so it reads like the
   // broader profile wash against a gray basemap.
@@ -382,13 +321,13 @@ try {
     }
   })
 } catch (err) {
-  fatal(`Map disabled — ${err.message} The profile and crew plan below still work.`)
+  fatal(`Map disabled — ${err.message} The profile and crew record below still work.`)
 }
 if (import.meta.env.DEV) window.__map = map
 
 const bbox = (() => {
   let w = 180, s = 90, e = -180, n = -90
-  for (const [x, y] of fullLine.geometry.coordinates) {
+  for (const [x, y] of activityLineFeature.geometry.coordinates) {
     w = Math.min(w, x); e = Math.max(e, x); s = Math.min(s, y); n = Math.max(n, y)
   }
   return [[w, s], [e, n]]
@@ -424,8 +363,7 @@ function addCourseLayers() {
     'star-intensity': 0,
   })
 
-  if (!map.getSource('course')) {
-    map.addSource('course', { type: 'geojson', data: fullLine, lineMetrics: true })
+  if (!map.getSource('course-sel')) {
     map.addSource('course-sel', {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
@@ -433,26 +371,7 @@ function addCourseLayers() {
     map.addSource('miles', { type: 'geojson', data: mileMarkerGeojson() })
   }
 
-  // white halo keeps the line legible over map labels and satellite
-  map.addLayer({
-    id: 'course-case', type: 'line', source: 'course',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': C.paper, 'line-opacity': 0.9,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 4.5, 14, 9],
-    },
-  })
-  // a single black line, like a drawing
-  map.addLayer({
-    id: 'course-line', type: 'line', source: 'course',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': C.ink,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.6, 14, 3.4],
-      'line-opacity': 1,
-    },
-  })
-  // measured segment is overlaid in the same yellow as the profile wash
+  // Measured actual segment is overlaid in the same yellow as the profile wash.
   map.addLayer({
     id: 'course-sel-line', type: 'line', source: 'course-sel',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -486,8 +405,8 @@ function addCourseLayers() {
 
 function mileMarkerGeojson() {
   const feats = []
-  for (let m = 5; m < course.totalMi; m += 5) {
-    const p = ptAt(m)
+  for (let m = 5; m < activityTotalMi; m += 5) {
+    const p = activityPointAtMi(m)
     feats.push({
       type: 'Feature', properties: { m },
       geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
@@ -499,9 +418,7 @@ function mileMarkerGeojson() {
 // Waypoints + hover ghost live in draped layers (DOM markers drift on 3D terrain).
 const wpGeojson = {
   type: 'FeatureCollection',
-  features: waypoints.map(w => {
-    const p = ptAt(w.mi)
-    return {
+  features: waypoints.map(w => ({
       type: 'Feature',
       properties: {
         id: w.id,
@@ -510,38 +427,17 @@ const wpGeojson = {
         crew: w.crew ? 1 : 0,
         label: w.name.split(/·|—/)[0].trim(),
       },
-      geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-    }
-  }),
+      geometry: { type: 'Point', coordinates: [w.lon, w.lat] },
+    })),
 }
 const EMPTY = { type: 'FeatureCollection', features: [] }
 
-const activityTrackFeature = {
-  type: 'Feature',
-  properties: { name: activitySummary.name },
-  geometry: {
-    type: 'LineString',
-    coordinates: activity.track.map(sample => sample.slice(0, 2)),
-  },
-}
-const activityEndpointFeatures = {
-  type: 'FeatureCollection',
-  features: [
-    { kind: 'start', sample: activity.track[0] },
-    { kind: 'finish', sample: activity.track.at(-1) },
-  ].map(({ kind, sample }) => ({
-    type: 'Feature',
-    properties: { kind },
-    geometry: { type: 'Point', coordinates: sample.slice(0, 2) },
-  })),
-}
-
 function activityTrackGeojson() {
-  return activityVisible ? activityTrackFeature : EMPTY
+  return activityLineFeature
 }
 
 function activityEndpointsGeojson() {
-  return activityVisible ? activityEndpointFeatures : EMPTY
+  return activityEndpointFeatures
 }
 
 function addActivityLayers() {
@@ -556,7 +452,7 @@ function addActivityLayers() {
     paint: {
       'line-color': C.paper,
       'line-opacity': 0.9,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3.8, 14, 7],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 4.5, 14, 9],
     },
   }, 'mile-dots')
   map.addLayer({
@@ -565,9 +461,9 @@ function addActivityLayers() {
     source: 'activity-track',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': C.activity,
-      'line-opacity': 0.96,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.7, 14, 3.2],
+      'line-color': C.ink,
+      'line-opacity': 1,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.6, 14, 3.4],
     },
   }, 'mile-dots')
   map.addLayer({
@@ -579,18 +475,15 @@ function addActivityLayers() {
       'circle-color': [
         'match', ['get', 'kind'],
         'start', C.paper,
-        C.activity,
+        C.ink,
       ],
       'circle-stroke-width': 1.8,
-      'circle-stroke-color': C.activity,
+      'circle-stroke-color': C.ink,
       'circle-emissive-strength': 1,
     },
   })
-}
-
-function updateActivitySources() {
-  map?.getSource('activity-track')?.setData(activityTrackGeojson())
-  map?.getSource('activity-endpoints')?.setData(activityEndpointsGeojson())
+  // Keep profile selections above the black activity track and below its markers.
+  map.moveLayer('course-sel-line', 'mile-dots')
 }
 
 function userLocationGeojson() {
@@ -962,7 +855,15 @@ async function addMediaLayers() {
 
   map.on('click', 'media-icons', e => {
     const id = e.features?.[0]?.properties?.id
-    if (id) focusMedia(id, true)
+    if (!id) return
+    const overlappingIds = [...new Set([
+      id,
+      ...map.queryRenderedFeatures(e.point, { layers: ['media-icons'] })
+        .map(feature => feature.properties?.id)
+        .filter(candidateId => candidateId && candidateId !== id),
+    ])].sort((a, b) =>
+      new Date(mediaById.get(a)?.capturedAt) - new Date(mediaById.get(b)?.capturedAt))
+    focusMedia(id, true, overlappingIds)
   })
   map.on('mouseenter', 'media-icons', () => (map.getCanvas().style.cursor = 'pointer'))
   map.on('mouseleave', 'media-icons', () => (map.getCanvas().style.cursor = ''))
@@ -982,7 +883,7 @@ const mediaTimestamp = value => new Intl.DateTimeFormat('en-US', {
   timeZoneName: 'short',
 }).format(new Date(value))
 
-function mediaPopupContent(item) {
+function mediaPopupContent(item, overlappingIds = []) {
   const card = document.createElement('article')
   card.className = 'media-card expanded'
 
@@ -1236,10 +1137,48 @@ function mediaPopupContent(item) {
   const meta = document.createElement('div')
   meta.className = 'media-card-meta'
   meta.textContent = [
-    `mile ${fmtMi(item.mi)}`,
+    `actual mile ${fmtMi(item.mi)}`,
     item.capturedAt ? mediaTimestamp(item.capturedAt) : null,
+    Number.isFinite(item.activityElapsedS)
+      ? `${activityDuration(item.activityElapsedS)} elapsed`
+      : null,
+    item.creator ? `by ${item.creator}` : null,
   ].filter(Boolean).join(' · ')
   copy.append(title, meta)
+  const overlappingItems = overlappingIds
+    .map(id => mediaById.get(id))
+    .filter(Boolean)
+  const overlappingIndex = overlappingItems.findIndex(candidate => candidate.id === item.id)
+  if (overlappingItems.length > 1 && overlappingIndex >= 0) {
+    const stack = document.createElement('div')
+    stack.className = 'media-card-stack'
+    const label = document.createElement('span')
+    label.className = 'media-card-stack-label'
+    label.textContent = `${overlappingIndex + 1} / ${overlappingItems.length} overlapping`
+    const addButton = (direction, glyph, action) => {
+      const targetIndex = (overlappingIndex + direction + overlappingItems.length) %
+        overlappingItems.length
+      const target = overlappingItems[targetIndex]
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.textContent = glyph
+      button.setAttribute(
+        'aria-label',
+        `${action} overlapping media${target.creator ? ` by ${target.creator}` : ''}`,
+      )
+      button.addEventListener('click', event => {
+        event.stopPropagation()
+        focusMedia(target.id, false, overlappingItems.map(candidate => candidate.id))
+      })
+      return button
+    }
+    stack.append(
+      label,
+      addButton(-1, '‹', 'Previous'),
+      addButton(1, '›', 'Next'),
+    )
+    copy.append(stack)
+  }
 
   const resizeHandle = document.createElement('button')
   resizeHandle.type = 'button'
@@ -1288,7 +1227,7 @@ function mediaPopupContent(item) {
   return card
 }
 
-function focusMedia(id, fly = false) {
+function focusMedia(id, fly = false, overlappingIds = []) {
   const item = mediaById.get(id)
   if (!item || !map) return
   popup?.remove()
@@ -1305,7 +1244,7 @@ function focusMedia(id, fly = false) {
   repositionMediaPopup = positionPopup
   const showPopup = () => {
     if (!mediaVisible || selectedMediaId !== id) return
-    const content = mediaPopupContent(item)
+    const content = mediaPopupContent(item, overlappingIds)
     content.addEventListener('mediaresize', () => {
       requestAnimationFrame(repositionMediaPopup)
     })
@@ -1349,8 +1288,7 @@ function focusFacility(id, visitId = null, fly = false) {
     ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 
   const visitRows = visits.map(visit => {
-    const eta = etaAt(visit.mi)
-    return `<div class="pop-row"><b>mi ${fmtMi(visit.mi)}</b> · ${Math.round(visit.offsetM)} m away · ETA ${hhmm(eta)} ${weekday(eta)}</div>`
+    return `<div class="pop-row"><b>mi ${fmtMi(visit.mi)}</b> · ${Math.round(visit.offsetM)} m away · passed ${hhmm(visit.clock)} ${weekday(visit.clock)} · ${activityDuration(visit.elapsedS)} elapsed</div>`
   }).join('')
   popup.setLngLat([facility.lon, facility.lat]).setHTML(`
     <div class="pop-nm facility-title"><img class="facility-inline-icon" src="${meta.icon}" alt="" aria-hidden="true">${facility.name}</div>
@@ -1374,7 +1312,7 @@ function setGhost(mi) {
   const src = map?.getSource('ghost')
   if (!src) return
   if (mi == null) { src.setData(EMPTY); return }
-  const p = ptAt(mi)
+  const p = activityPointAtMi(mi)
   src.setData({
     type: 'Feature', properties: {},
     geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
@@ -1434,30 +1372,26 @@ if (map) {
 
 function focusWaypoint(id, fromMap = false) {
   const w = waypoints.find(x => x.id === id)
-  const p = ptAt(w.mi)
   document.querySelectorAll('.wp').forEach(li =>
     li.classList.toggle('sel', li.dataset.id === id))
   $(`.wp[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   if (!map) return
   mediaPopup?.remove()
 
-  const eta = etaAt(w.mi)
-  const gate = w.gate ? resolveWindow(w.gate.spec, eta) : null
-  const st = w.gate ? windowStatus(w.gate.spec, eta).st : 'ok'
-  const access = w.access || (w.crew ? 'open 24 h' : 'foot only')
-  popup.setLngLat([p.lon, p.lat]).setHTML(`
+  const accessDetail = factualAccess(w)
+  popup.setLngLat([w.lon, w.lat]).setHTML(`
     <div class="pop-nm">${w.name}</div>
-    <div class="pop-mi">mile ${fmtMi(w.mi)} · ${fmtFt(p.ele)} ft</div>
-    <div class="pop-row">ETA <b>${hhmm(eta)}</b> ${eta.toLocaleDateString('en-US', { weekday: 'short' })}
-      ${w.gate ? ` · ${w.gate.what} <b>${gate.label}</b>${st === 'closed' ? ' — <b>closed at your ETA</b>' : st === 'tight' ? ' — tight' : ''}` : ` · ${access}`}</div>
+    <div class="pop-mi">actual mile ${fmtMi(w.mi)} · ${fmtFt(w.altitudeM * FT_PER_M)} ft</div>
+    <div class="pop-row">arrived <b>${hhmm(w.actualClock)}</b> ${weekday(w.actualClock)} · ${activityDuration(w.actualElapsedS)} elapsed</div>
+    <div class="pop-row">${accessDetail}</div>
     <div class="pop-row">${w.note}</div>
-    ${w.gate?.alt ? `<div class="pop-row">alt: ${w.gate.alt}</div>` : ''}
+    ${w.gate?.alt ? `<div class="pop-row">${w.gate.alt}</div>` : ''}
   `).addTo(map)
 
   if (!fromMap) {
     stopOrbit()
     map.flyTo({
-      center: [p.lon, p.lat],
+      center: [w.lon, w.lat],
       zoom: 13.6,
       pitch: relief ? 65 : 0,
       duration: 1900,
@@ -1531,15 +1465,6 @@ function captureUserLocation() {
 }
 
 // ---------------------------------------------------------------- controls
-function setActivityVisible(visible) {
-  activityVisible = visible
-  const button = $('#ctl-activity')
-  button.classList.toggle('on', visible)
-  button.setAttribute('aria-pressed', String(visible))
-  updateActivitySources()
-  renderProfile()
-}
-
 $('#ctl-style').addEventListener('click', () => {
   if (!map) return
   satellite = !satellite
@@ -1562,7 +1487,6 @@ $('#ctl-3d').addEventListener('click', () => {
 })
 $('#ctl-orbit').addEventListener('click', () => (orbiting ? stopOrbit() : startOrbit()))
 $('#ctl-location').addEventListener('click', captureUserLocation)
-$('#ctl-activity').addEventListener('click', () => setActivityVisible(!activityVisible))
 $('#ctl-media').addEventListener('click', () => {
   mediaVisible = !mediaVisible
   const button = $('#ctl-media')
@@ -1587,6 +1511,38 @@ for (const [type, id] of [
     updateFacilitySource()
   })
 }
+document.querySelectorAll('#metric-controls [data-metric]').forEach(button => {
+  const key = button.dataset.metric
+  const def = METRIC_BY_KEY[key]
+  button.style.setProperty('--metric-color', def.color)
+  button.style.setProperty('--metric-gradient', metricGradient(key))
+  button.title = `Show ${def.label} on the elevation profile`
+  button.addEventListener('click', () => {
+    activeMetric = activeMetric === key ? null : key
+    document.querySelectorAll('#metric-controls [data-metric]').forEach(metricButton => {
+      const on = metricButton.dataset.metric === activeMetric
+      metricButton.classList.toggle('on', on)
+      metricButton.setAttribute('aria-pressed', String(on))
+    })
+    renderProfile()
+  })
+})
+document.querySelectorAll('#metric-controls [data-event]').forEach(button => {
+  const key = button.dataset.event
+  const def = EVENT_DEFS[key]
+  const colors = def.colors ? Object.values(def.colors) : [def.color, def.color]
+  button.style.setProperty('--metric-color', def.color)
+  button.style.setProperty('--metric-gradient', `linear-gradient(90deg, ${colors.join(', ')})`)
+  button.title = `Toggle ${def.label} on the elevation profile`
+  button.addEventListener('click', () => {
+    if (activeEvents.has(key)) activeEvents.delete(key)
+    else activeEvents.add(key)
+    const on = activeEvents.has(key)
+    button.classList.toggle('on', on)
+    button.setAttribute('aria-pressed', String(on))
+    renderProfile()
+  })
+})
 $('#ctl-fit').addEventListener('click', () => {
   if (!map) return
   stopOrbit()
@@ -1616,46 +1572,48 @@ function stopOrbit() {
   if (orbitRaf) cancelAnimationFrame(orbitRaf)
 }
 
-// ---------------------------------------------------------------- plan UI
-function toLocalInput(d) {
-  const p = n => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
-}
-$('#plan-start').value = toLocalInput(plan.start)
-$('#plan-hours').value = plan.hours
-
-$('#plan-start').addEventListener('change', e => {
-  const v = new Date(e.target.value)
-  if (!isNaN(v)) { plan.start = v; refreshPlan() }
-})
-$('#plan-hours').addEventListener('input', e => {
-  plan.hours = +e.target.value
-  refreshPlan()
-})
-
-function refreshPlan() {
-  localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify({ start: plan.start.toISOString(), hours: plan.hours }))
-  $('#plan-hours-out').textContent = `${plan.hours} h`
-  const fin = etaAt(course.totalMi)
-  $('#plan-finish').textContent =
-    `finish ${fin.toLocaleDateString('en-US', { weekday: 'short' })} ${hhmm(fin)}`
-  renderList()
-  renderProfile()
-}
+// ---------------------------------------------------------------- actual summary
+const compactClock = value => new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles',
+  weekday: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+}).format(new Date(value))
+$('#actual-date').textContent = 'Aug 8–9, 2026'
+$('#actual-distance').textContent = activityTotalMi.toFixed(2)
+$('#actual-elapsed').textContent = activityDuration(activitySummary.elapsedS)
+$('#actual-moving').textContent = activityDuration(activitySummary.movingS)
+$('#actual-start').textContent = compactClock(activitySummary.startAt)
+$('#actual-finish').textContent = compactClock(activitySummary.finishAt)
+$('#actual-gain').textContent =
+  `${Math.round(activitySummary.elevationGainM * FT_PER_M).toLocaleString('en-US')} ft`
+$('#actual-pace').textContent =
+  `${activityPace(activitySummary.averagePaceSecondsPerKm * 1.609344, 1)} /mi`
+$('#actual-effort').textContent = activitySummary.relativeEffort.toLocaleString('en-US')
+$('#actual-calories').textContent = activitySummary.calories.toLocaleString('en-US')
+$('#actual-condition').textContent = activitySummary.weather.condition
+$('#actual-temperature').textContent =
+  `${Math.round(activitySummary.weather.temperatureC * 9 / 5 + 32)} °F`
+$('#actual-humidity').textContent = `${activitySummary.weather.humidityPercent}%`
+$('#actual-feels').textContent =
+  `${Math.round(activitySummary.weather.feelsLikeC * 9 / 5 + 32)} °F`
+$('#actual-wind').textContent =
+  `${(activitySummary.weather.windSpeedKph / 1.609344).toFixed(1)} mph`
+$('#actual-wind-direction').textContent = activitySummary.weather.windDirection
 
 // ---------------------------------------------------------------- waypoint list
 document.querySelectorAll('#filters button').forEach(b =>
   b.addEventListener('click', () => {
-    filter = b.dataset.f
-    if (filter === 'activity') setActivityVisible(true)
-    document.querySelectorAll('#filters button').forEach(x => x.classList.toggle('on', x === b))
+    filter = filter === b.dataset.f ? 'all' : b.dataset.f
+    document.querySelectorAll('#filters button').forEach(x =>
+      x.classList.toggle('on', x.dataset.f === filter))
     renderList()
   }))
 
 function visible(w) {
   if (filter === 'crew') return w.crew
   if (filter === 'gated') return !!w.gate
-  if (filter === 'all') return w.crew
+  if (filter === 'all') return true
   return true
 }
 
@@ -1672,80 +1630,13 @@ function activityPace(seconds, distance) {
   return `${Math.floor(pace / 60)}:${String(pace % 60).padStart(2, '0')}`
 }
 
-function activityDate(value) {
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
-
-function renderActivity(ol) {
-  const summary = activitySummary
-  const distanceMi = summary.distanceM / 1609.344
-  const weather = summary.weather
-  const metrics = [
-    ['Average pace', `${activityPace(summary.averagePaceSecondsPerKm * 1.609344, 1)} /mi`],
-    ['Relative effort', summary.relativeEffort.toLocaleString('en-US')],
-    ['Elevation gain', `${Math.round(summary.elevationGainM * 3.28084).toLocaleString('en-US')} ft`],
-    ['Calories', summary.calories.toLocaleString('en-US')],
-    ['Elapsed time', activityDuration(summary.elapsedS)],
-  ]
-  const weatherMetrics = [
-    ['Temperature', `${Math.round(weather.temperatureC * 9 / 5 + 32)} °F`],
-    ['Humidity', `${weather.humidityPercent}%`],
-    ['Feels like', `${Math.round(weather.feelsLikeC * 9 / 5 + 32)} °F`],
-    ['Wind speed', `${(weather.windSpeedKph / 1.609344).toFixed(1)} mph`],
-    ['Wind direction', weather.windDirection],
-  ]
-  const li = document.createElement('li')
-  li.className = 'activity-card'
-  li.innerHTML = `
-    <article aria-labelledby="activity-title">
-      <div class="activity-kicker"><span aria-hidden="true"></span>recorded activity</div>
-      <h2 id="activity-title">${summary.name}</h2>
-      <p class="activity-date">${summary.sport} · ${activityDate(summary.startAt)} → ${activityDate(summary.finishAt)}</p>
-      <div class="activity-hero">
-        <div><strong>${distanceMi.toFixed(2)}</strong><span>miles</span></div>
-        <div><strong>${activityDuration(summary.movingS)}</strong><span>moving time</span></div>
-      </div>
-      <dl class="activity-grid">
-        ${metrics.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}
-      </dl>
-      <section class="activity-weather" aria-labelledby="activity-weather-title">
-        <div class="activity-weather-heading">
-          <svg viewBox="0 0 24 18" aria-hidden="true">
-            <path d="M6.5 16.5h11a5 5 0 0 0 .3-10A7 7 0 0 0 4.4 7.9a4.4 4.4 0 0 0 2.1 8.6Z" />
-          </svg>
-          <h3 id="activity-weather-title">${weather.condition}</h3>
-        </div>
-        <dl class="activity-weather-grid">
-          ${weatherMetrics.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}
-        </dl>
-      </section>
-    </article>`
-  ol.appendChild(li)
-}
-
 function renderList() {
   const ol = $('#wplist')
   const summary = $('#segment-summary')
-  const suppliesSummary = $('#supplies-summary')
   const scrollTop = renderedFilter === filter ? ol.scrollTop : 0
   renderedFilter = filter
   ol.innerHTML = ''
-  suppliesSummary.hidden = true
-  $('#supplies-editor').hidden = true
-  $('#legend').hidden = filter === 'supplies' || filter === 'crew' || filter === 'activity'
-  if (filter === 'activity') {
-    summary.hidden = true
-    renderActivity(ol)
-    ol.scrollTop = scrollTop
-    return
-  }
+  $('#legend').hidden = filter === 'crew'
   if (filter === 'crew') {
     summary.hidden = true
     renderCrewPlan(ol)
@@ -1759,12 +1650,6 @@ function renderList() {
     return
   }
   summary.hidden = true
-  if (filter === 'supplies') {
-    renderSuppliesSummary(suppliesSummary)
-    renderSupplies(ol, suppliesSummary)
-    ol.scrollTop = scrollTop
-    return
-  }
   if (FACILITY_TYPES[filter]) {
     renderFacilityList(ol, filter)
     ol.scrollTop = scrollTop
@@ -1774,29 +1659,28 @@ function renderList() {
   shown.forEach((w, i) => {
     if (i > 0) {
       const prev = shown[i - 1]
-      const s = statsBetween(prev.mi, w.mi)
+      const s = activityStatsBetween(prev.mi, w.mi)
       const leg = document.createElement('li')
       leg.className = 'leg'
       leg.textContent = `${s.mi.toFixed(1)} mi · +${fmtFt(s.gain)} ft · −${fmtFt(s.loss)} ft`
       ol.appendChild(leg)
     }
-    const eta = etaAt(w.mi)
-    const st = w.gate ? windowStatus(w.gate.spec, eta).st : 'ok'
+    const arrived = w.actualClock
     const li = document.createElement('li')
     li.className = 'wp' +
       (w.crew ? '' : ' foot') +
       (w.gate ? ' gate gated' : '')
     li.dataset.id = w.id
-    const gateTxt = w.gate
-      ? `<span class="g${st === 'closed' ? ' bad' : ''}">${w.bridge ? 'ped gates' : w.gate.what} ${resolveWindow(w.gate.spec, eta).label}${st === 'closed' ? ' — closed at ETA' : st === 'tight' ? ' — tight' : ''}</span>`
+    const accessText = w.gate
+      ? `<span class="g">${factualAccess(w)}</span>`
       : (w.access || (w.crew ? '24 h access' : '<span class="f">foot only</span>'))
     li.innerHTML = `
-      <span class="mi">${fmtMi(w.mi)}<em>${fmtFt(ptAt(w.mi).ele)} ft</em></span>
+      <span class="mi">${fmtMi(w.mi)}<em>${fmtFt(w.altitudeM * FT_PER_M)} ft</em></span>
       <span>
         <span class="nm">${w.name}</span>
-        <div class="meta">${gateTxt}</div>
+        <div class="meta">${accessText}</div>
       </span>
-      <span class="eta"><span class="${st !== 'ok' ? (st === 'closed' ? 'closed' : 'tight') : ''}">${hhmm(eta)}</span><em>${eta.toLocaleDateString('en-US', { weekday: 'short' })}</em></span>`
+      <span class="eta"><span>${hhmm(arrived)}</span><em>${activityDuration(w.actualElapsedS)} elapsed</em></span>`
     li.addEventListener('click', () => focusWaypoint(w.id))
     ol.appendChild(li)
   })
@@ -1886,7 +1770,7 @@ function renderCrewPlan(ol) {
   const intro = document.createElement('li')
   intro.className = 'crew-plan-intro'
   const introTitle = document.createElement('b')
-  introTitle.textContent = 'Aid-station plan'
+  introTitle.textContent = 'Crew & pacers'
   const introText = document.createElement('span')
   if (placeholders.length) {
     placeholders.forEach((placeholder, index) => {
@@ -1896,27 +1780,29 @@ function renderCrewPlan(ol) {
       chip.textContent = placeholder
       introText.appendChild(chip)
     })
-    introText.append(' are open assignments. ETAs follow the start and target above.')
+    introText.append(' appear exactly as recorded in the source. Times below are GPS-matched arrivals.')
   } else {
-    introText.textContent = 'ETAs follow the start and target above.'
+    introText.textContent = 'Historical handoffs with GPS-matched arrival times and verified activity miles.'
   }
   intro.append(introTitle, introText)
   ol.appendChild(intro)
 
   for (const stop of crewPlan) {
-    const waypoint = crewPoints.reduce((nearest, candidate) =>
-      Math.abs(candidate.mi - stop.mi) < Math.abs(nearest.mi - stop.mi)
+    const waypoint = waypointById.get(stop.waypointId) || crewPoints.reduce((nearest, candidate) =>
+      Math.abs(candidate.plannedMi - stop.mi) < Math.abs(nearest.plannedMi - stop.mi)
         ? candidate
         : nearest, crewPoints[0])
-    const eta = etaAt(stop.mi)
+    const arrived = waypoint.actualClock
     const li = document.createElement('li')
     li.className = 'crew-plan-stop'
-    if (/Pacer \d+/.test(`${stop.pacerIn} ${stop.pacerOut}`)) li.classList.add('open')
     li.dataset.id = waypoint.id
 
     const button = document.createElement('button')
     button.type = 'button'
-    button.setAttribute('aria-label', `${stop.name}, mile ${fmtMi(stop.mi)}, ETA ${hhmm(eta)}`)
+    button.setAttribute(
+      'aria-label',
+      `${stop.name}, actual mile ${fmtMi(waypoint.mi)}, arrived ${hhmm(arrived)}`,
+    )
 
     const number = document.createElement('span')
     number.className = 'crew-plan-no'
@@ -1931,7 +1817,7 @@ function renderCrewPlan(ol) {
     name.textContent = stop.name
     const mile = document.createElement('span')
     mile.className = 'crew-plan-mile'
-    mile.textContent = `mile ${fmtMi(stop.mi)}`
+    mile.textContent = `actual mile ${fmtMi(waypoint.mi)}`
     heading.append(name, mile)
 
     const details = document.createElement('span')
@@ -1948,9 +1834,9 @@ function renderCrewPlan(ol) {
     const time = document.createElement('span')
     time.className = 'crew-plan-time'
     const clock = document.createElement('span')
-    clock.textContent = hhmm(eta)
+    clock.textContent = hhmm(arrived)
     const day = document.createElement('em')
-    day.textContent = weekday(eta)
+    day.textContent = `${weekday(arrived)} · ${activityDuration(waypoint.actualElapsedS)}`
     time.append(clock, day)
 
     button.append(number, main, time)
@@ -1965,13 +1851,12 @@ function renderFacilityList(ol, type) {
   visits.forEach((visit, i) => {
     if (i > 0) {
       const previous = visits[i - 1]
-      const s = statsBetween(previous.mi, visit.mi)
+      const s = activityStatsBetween(previous.mi, visit.mi)
       const leg = document.createElement('li')
       leg.className = 'leg'
       leg.textContent = `${s.mi.toFixed(1)} mi · +${fmtFt(s.gain)} ft · −${fmtFt(s.loss)} ft`
       ol.appendChild(leg)
     }
-    const eta = etaAt(visit.mi)
     const li = document.createElement('li')
     li.className = 'wp facility-stop'
     li.dataset.id = visit.facility.id
@@ -1981,246 +1866,24 @@ function renderFacilityList(ol, type) {
       <span>
         <span class="nm">${visit.facility.name}</span>
       </span>
-      <span class="eta">${hhmm(eta)}<em>${weekday(eta)}</em></span>`
+      <span class="eta">${hhmm(visit.clock)}<em>${activityDuration(visit.elapsedS)} elapsed</em></span>`
     li.addEventListener('click', () => focusFacility(visit.facility.id, visit.id, true))
     ol.appendChild(li)
   })
 }
 
-function persistSupplies() {
-  const ids = allSupplyItems()
-    .filter(item => checkedSupplies.has(item.id))
-    .map(item => item.id)
-  localStorage.setItem(SUPPLY_STORAGE_KEY, JSON.stringify(ids))
-}
-
-function persistSupplyList() {
-  localStorage.setItem(SUPPLY_LIST_STORAGE_KEY, JSON.stringify(supplyGroups))
-}
-
-function openSupplyEditor() {
-  const editor = $('#supplies-editor')
-  const category = $('#supply-category')
-  const previousCategory = category.value
-  category.innerHTML = ''
-  for (const group of supplyGroups) {
-    const option = document.createElement('option')
-    option.value = group.id
-    option.textContent = group.label
-    category.appendChild(option)
-  }
-  if (supplyGroups.some(group => group.id === previousCategory)) category.value = previousCategory
-  editor.hidden = false
-  $('#supply-name').focus()
-}
-
-function csvCell(value) {
-  const text = String(value ?? '')
-  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text
-  return `"${safe.replaceAll('"', '""')}"`
-}
-
-function downloadSuppliesCsv() {
-  const rows = [['category', 'item', 'detail', 'packed']]
-  for (const group of supplyGroups) {
-    for (const item of group.items) {
-      rows.push([
-        group.label,
-        item.label,
-        item.detail || '',
-        checkedSupplies.has(item.id) ? 'yes' : 'no',
-      ])
-    }
-  }
-  const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n')
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'homedred-miler-supplies.csv'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
-function missingDefaultSupplyCount() {
-  return defaultSupplyGroups.reduce((total, defaultGroup) => {
-    const group = supplyGroups.find(candidate => candidate.id === defaultGroup.id)
-    const ids = new Set(group?.items.map(item => item.id) || [])
-    return total + defaultGroup.items.filter(item => !ids.has(item.id)).length
-  }, 0)
-}
-
-function undoSupplyRemoval() {
-  if (!lastRemovedSupply) return
-  const { groupId, item, index, wasChecked } = lastRemovedSupply
-  const group = supplyGroups.find(candidate => candidate.id === groupId)
-  if (group && !group.items.some(candidate => candidate.id === item.id)) {
-    group.items.splice(Math.min(index, group.items.length), 0, item)
-    if (wasChecked) checkedSupplies.add(item.id)
-  }
-  lastRemovedSupply = null
-  persistSupplyList()
-  persistSupplies()
-  renderList()
-}
-
-function restoreDefaultSupplies() {
-  for (const defaultGroup of defaultSupplyGroups) {
-    const group = supplyGroups.find(candidate => candidate.id === defaultGroup.id)
-    if (!group) continue
-    const byId = new Map(group.items.map(item => [item.id, item]))
-    const defaultIds = new Set(defaultGroup.items.map(item => item.id))
-    const restoredDefaults = defaultGroup.items.map(item => byId.get(item.id) || normalizeSupplyItem(item))
-    const customItems = group.items.filter(item => !defaultIds.has(item.id))
-    group.items = [...restoredDefaults, ...customItems]
-  }
-  lastRemovedSupply = null
-  persistSupplyList()
-  persistSupplies()
-  renderList()
-}
-
-function renderSuppliesSummary(summary) {
-  const items = allSupplyItems()
-  const checked = items.filter(item => checkedSupplies.has(item.id)).length
-  const remaining = items.length - checked
-  const missingDefaults = missingDefaultSupplyCount()
-  const status = lastRemovedSupply
-    ? `${lastRemovedSupply.item.label} removed`
-    : items.length ? (remaining ? `${remaining} remaining` : 'ready to go') : 'no items'
-  summary.hidden = false
-  summary.innerHTML = `
-    <span>
-      <b>${checked} / ${items.length} packed</b>
-      <small>${status}</small>
-    </span>
-    <span class="supply-summary-actions">
-      <button type="button" data-action="add">add item</button>
-      <button type="button" data-action="csv">download csv</button>
-      <button type="button" data-action="undo" aria-label="Undo last removal"${lastRemovedSupply ? '' : ' hidden'}>undo</button>
-      <button type="button" data-action="restore"${missingDefaults ? '' : ' hidden'}>restore defaults</button>
-      <button type="button" data-action="clear"${checked ? '' : ' hidden'}>clear checks</button>
-    </span>`
-  summary.querySelector('[data-action="add"]').addEventListener('click', openSupplyEditor)
-  summary.querySelector('[data-action="csv"]').addEventListener('click', downloadSuppliesCsv)
-  summary.querySelector('[data-action="undo"]').addEventListener('click', undoSupplyRemoval)
-  summary.querySelector('[data-action="restore"]').addEventListener('click', restoreDefaultSupplies)
-  const clear = summary.querySelector('[data-action="clear"]')
-  clear.addEventListener('click', () => {
-    checkedSupplies.clear()
-    persistSupplies()
-    renderList()
-  })
-}
-
-function renderSupplies(ol, summary) {
-  for (const group of supplyGroups) {
-    const category = document.createElement('li')
-    category.className = 'supply-category'
-    const categoryName = document.createElement('span')
-    categoryName.textContent = group.label
-    const groupCount = document.createElement('small')
-    category.append(categoryName, groupCount)
-    const updateGroupCount = () => {
-      const checked = group.items.filter(item => checkedSupplies.has(item.id)).length
-      groupCount.textContent = `${checked} / ${group.items.length}`
-    }
-    updateGroupCount()
-    ol.appendChild(category)
-
-    for (const item of group.items) {
-      const li = document.createElement('li')
-      li.className = 'supply-item' + (checkedSupplies.has(item.id) ? ' done' : '')
-      li.dataset.supplyId = item.id
-      const label = document.createElement('label')
-      const copy = document.createElement('span')
-      copy.className = 'supply-copy'
-      const name = document.createElement('span')
-      name.className = 'supply-name'
-      name.textContent = item.label
-      copy.appendChild(name)
-      if (item.detail) {
-        const detail = document.createElement('small')
-        detail.textContent = item.detail
-        copy.appendChild(detail)
-      }
-      const input = document.createElement('input')
-      input.type = 'checkbox'
-      input.checked = checkedSupplies.has(item.id)
-      input.setAttribute('aria-label', `Pack ${item.label}`)
-      const box = document.createElement('span')
-      box.className = 'supply-box'
-      box.setAttribute('aria-hidden', 'true')
-      label.append(copy, input, box)
-      input.addEventListener('change', () => {
-        if (input.checked) checkedSupplies.add(item.id)
-        else checkedSupplies.delete(item.id)
-        li.classList.toggle('done', input.checked)
-        persistSupplies()
-        updateGroupCount()
-        renderSuppliesSummary(summary)
-      })
-      const remove = document.createElement('button')
-      remove.type = 'button'
-      remove.className = 'supply-remove'
-      remove.textContent = '−'
-      remove.setAttribute('aria-label', `Remove ${item.label}`)
-      remove.addEventListener('click', () => {
-        lastRemovedSupply = {
-          groupId: group.id,
-          item: { ...item },
-          index: group.items.findIndex(candidate => candidate.id === item.id),
-          wasChecked: checkedSupplies.has(item.id),
-        }
-        group.items = group.items.filter(candidate => candidate.id !== item.id)
-        checkedSupplies.delete(item.id)
-        persistSupplyList()
-        persistSupplies()
-        renderList()
-      })
-      li.append(label, remove)
-      ol.appendChild(li)
-    }
-  }
-}
-
-$('#supplies-editor').addEventListener('submit', event => {
-  event.preventDefault()
-  const name = $('#supply-name')
-  const label = capitalizeSupplyLabel(name.value.trim())
-  const group = supplyGroups.find(candidate => candidate.id === $('#supply-category').value)
-  if (!label || !group) return
-  const id = `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
-  group.items.push({ id, label })
-  persistSupplyList()
-  name.value = ''
-  renderList()
-  document.querySelector(`[data-supply-id="${id}"]`)?.scrollIntoView({ block: 'nearest' })
-})
-$('#supply-cancel').addEventListener('click', () => {
-  $('#supply-name').value = ''
-  $('#supplies-editor').hidden = true
-})
-
 const weekday = d => d.toLocaleDateString('en-US', { weekday: 'short' })
-const fmtDuration = ms => {
-  const minutes = Math.round(ms / 60000)
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`
-}
 
 const selectedCrewSegments = () =>
   crewSegments.filter(segment => selectedSegmentKeys.has(segment.key))
 
 function segmentTotals(segments = selectedCrewSegments()) {
   return segments.reduce((total, { from, to }) => {
-    const s = statsBetween(from.mi, to.mi)
+    const s = activityStatsBetween(from.mi, to.mi)
     total.mi += s.mi
     total.gain += s.gain
     total.loss += s.loss
-    total.duration += etaAt(to.mi) - etaAt(from.mi)
+    total.duration += s.elapsedS * 1000
     return total
   }, { mi: 0, gain: 0, loss: 0, duration: 0 })
 }
@@ -2245,8 +1908,8 @@ function renderSegmentSummary(summary) {
   summary.className = ''
   summary.innerHTML = `
     <span>
-      <b>Combined · ${segments.length} segment${segments.length === 1 ? '' : 's'}</b>
-      <small>${total.mi.toFixed(1)} mi · +${fmtFt(total.gain)} ft · −${fmtFt(total.loss)} ft · ${fmtDuration(total.duration)}</small>
+      <b>Combined · ${segments.length} split${segments.length === 1 ? '' : 's'}</b>
+      <small>${total.mi.toFixed(1)} mi · +${fmtFt(total.gain)} ft · −${fmtFt(total.loss)} ft · ${activityDuration(total.duration / 1000)} elapsed</small>
     </span>
     <button type="button">clear</button>`
   summary.querySelector('button').addEventListener('click', clearSegmentSelection)
@@ -2255,9 +1918,9 @@ function renderSegmentSummary(summary) {
 function renderSegments(ol) {
   for (const segment of crewSegments) {
     const { from, to } = segment
-    const s = statsBetween(from.mi, to.mi)
-    const depart = etaAt(from.mi)
-    const arrive = etaAt(to.mi)
+    const s = activityStatsBetween(from.mi, to.mi)
+    const depart = s.startAt
+    const arrive = s.finishAt
     const selected = selectedSegmentKeys.has(segment.key)
     const li = document.createElement('li')
     li.className = 'segment' + (selected ? ' sel' : '')
@@ -2275,8 +1938,8 @@ function renderSegments(ol) {
         </span>
         <span class="seg-stats">${s.mi.toFixed(1)} mi · +${fmtFt(s.gain)} ft · −${fmtFt(s.loss)} ft</span>
         <span class="seg-eta">
-          ETA ${hhmm(depart)} ${weekday(depart)} → ${hhmm(arrive)} ${weekday(arrive)}
-          <i>· ${fmtDuration(arrive - depart)}</i>
+          ${hhmm(depart)} ${weekday(depart)} → ${hhmm(arrive)} ${weekday(arrive)}
+          <i>· ${activityDuration(s.elapsedS)} · ${activityPace(s.elapsedS, s.mi)} /mi</i>
         </span>
       </span>`
     button.addEventListener('click', () => selectSegment(segment))
@@ -2308,57 +1971,244 @@ const chart = $('#pchart')
 const NS = 'http://www.w3.org/2000/svg'
 let geom = null // {W,H,padL,padR,padT,padB, x(), y(), miAtX()}
 
+function appendEventProfileOverlays(svg, x, padT, padB, height) {
+  if (activeEvents.has('climbs')) {
+    for (const range of eventRanges('climbs')) {
+      const band = rect(
+        x(range.a),
+        padT,
+        Math.max(0.7, x(range.b) - x(range.a)),
+        height - padT - padB,
+        EVENT_DEFS.climbs.color,
+      )
+      band.setAttribute('opacity', 0.09)
+      svg.appendChild(band)
+    }
+  }
+
+  if (activeEvents.has('offCourse')) {
+    for (const range of eventRanges('offCourse')) {
+      const band = rect(
+        x(range.a),
+        padT,
+        Math.max(0.7, x(range.b) - x(range.a)),
+        height - padT - padB,
+        EVENT_DEFS.offCourse.color,
+      )
+      band.setAttribute('opacity', 0.1)
+      svg.appendChild(band)
+      svg.appendChild(line(
+        x(range.a),
+        padT,
+        x(range.a),
+        height - padB,
+        EVENT_DEFS.offCourse.color,
+        0.8,
+        '2 2',
+      ))
+    }
+  }
+
+}
+
+function appendMovementProfileBars(svg, x, padB, height) {
+  const plotLeft = x(0)
+  const plotWidth = x(activityTotalMi) - plotLeft
+  const barCount = Math.max(40, Math.min(160, Math.floor(plotWidth / 5)))
+  const scores = {
+    run: new Float32Array(barCount),
+    walk: new Float32Array(barCount),
+    stand: new Float32Array(barCount),
+  }
+  const milesPerBar = activityTotalMi / barCount
+  for (const range of eventRanges('movement')) {
+    const from = Math.max(0, Math.min(activityTotalMi, range.a))
+    const to = Math.max(from, Math.min(activityTotalMi, range.b))
+    const first = Math.min(barCount - 1, Math.floor(from / milesPerBar))
+    const last = Math.min(barCount - 1, Math.floor(to / milesPerBar))
+    for (let bin = first; bin <= last; bin += 1) {
+      const overlap = Math.max(
+        0,
+        Math.min(to, (bin + 1) * milesPerBar) - Math.max(from, bin * milesPerBar),
+      )
+      scores[range.type][bin] += overlap
+    }
+  }
+
+  const step = plotWidth / barCount
+  const barWidth = Math.max(1, step * 0.7)
+  const heights = { run: 26, walk: 15, stand: 6 }
+  const grouped = new Map()
+  for (let bin = 0; bin < barCount; bin += 1) {
+    const mode = ['run', 'walk', 'stand'].reduce((best, candidate) =>
+      scores[candidate][bin] > scores[best][bin] ? candidate : best)
+    if (scores[mode][bin] <= 0) continue
+    const barHeight = heights[mode]
+    const left = plotLeft + bin * step + (step - barWidth) / 2
+    const top = height - padB - barHeight
+    const command = `M ${left.toFixed(1)} ${top.toFixed(1)} ` +
+      `h ${barWidth.toFixed(1)} v ${barHeight} h ${(-barWidth).toFixed(1)} Z`
+    grouped.set(mode, `${grouped.get(mode) || ''} ${command}`)
+  }
+  for (const [mode, d] of grouped) {
+    const bars = path(d, EVENT_DEFS.movement.colors[mode], 'none', 0)
+    bars.setAttribute('opacity', 0.88)
+    svg.appendChild(bars)
+  }
+}
+
+function appendMetricBars(
+  svg,
+  key,
+  def,
+  values,
+  yMetric,
+  padL,
+  padR,
+  padT,
+  padB,
+  width,
+  height,
+) {
+  const plotWidth = width - padL - padR
+  const barCount = Math.max(40, Math.min(160, Math.floor(plotWidth / 5)))
+  const sums = new Float64Array(barCount)
+  const counts = new Uint16Array(barCount)
+  for (let index = 0; index < activityTrack.length; index += 1) {
+    const value = values[index]
+    if (!Number.isFinite(value)) continue
+    const mi = displayMiFromRawM(activityTrack[index][3])
+    const bin = Math.min(barCount - 1, Math.floor(mi / activityTotalMi * barCount))
+    sums[bin] += value
+    counts[bin] += 1
+  }
+
+  const step = plotWidth / barCount
+  const barWidth = Math.max(1, step * 0.7)
+  const clampY = value => Math.min(height - padB, Math.max(padT, value))
+  const baseline = def.symmetric ? clampY(yMetric(0)) : height - padB
+  const grouped = new Map()
+  for (let bin = 0; bin < barCount; bin += 1) {
+    if (!counts[bin]) continue
+    const value = sums[bin] / counts[bin]
+    const valueY = clampY(yMetric(value))
+    const top = Math.min(baseline, valueY)
+    const barHeight = Math.max(1, Math.abs(baseline - valueY))
+    const left = padL + bin * step + (step - barWidth) / 2
+    const color = metricColor(key, value) || def.color
+    const command = `M ${left.toFixed(1)} ${top.toFixed(1)} ` +
+      `h ${barWidth.toFixed(1)} v ${barHeight.toFixed(1)} ` +
+      `h ${(-barWidth).toFixed(1)} Z`
+    grouped.set(color, `${grouped.get(color) || ''} ${command}`)
+  }
+
+  if (def.symmetric) {
+    svg.appendChild(line(padL, baseline, width - padR, baseline, def.color, 0.75))
+  }
+  for (const [color, d] of grouped) {
+    const bars = path(d, color, 'none', 0)
+    bars.setAttribute('opacity', 0.64)
+    svg.appendChild(bars)
+  }
+}
+
 function renderProfile() {
   const W = chart.clientWidth, H = chart.clientHeight
   if (!W || !H) return
-  const padL = 46, padR = 48, padT = 12, padB = 20
-  const eMin = Math.floor(course.minEleFt / 500) * 500
-  const eMax = Math.ceil(course.maxEleFt / 500) * 500
-  const x = mi => padL + (mi / course.totalMi) * (W - padL - padR)
+  const activeDef = activeMetric ? METRIC_BY_KEY[activeMetric] : null
+  const activeDomain = activeMetric ? metricDomain(activeMetric) : null
+  const activeValues = activeMetric ? metricSeries(activeMetric) : null
+  const padL = 46, padR = 76, padT = 20, padB = 20
+  const eMin = Math.floor(activitySummary.minAltitudeM * FT_PER_M / 500) * 500
+  const eMax = Math.ceil(activitySummary.maxAltitudeM * FT_PER_M / 500) * 500
+  const x = mi => padL + (mi / activityTotalMi) * (W - padL - padR)
   const y = e => padT + (1 - (e - eMin) / (eMax - eMin)) * (H - padT - padB)
-  const miAtX = px => Math.min(course.totalMi, Math.max(0, (px - padL) / (W - padL - padR) * course.totalMi))
+  const yMetric = value => {
+    const ratio = (value - activeDomain?.min) /
+      ((activeDomain?.max - activeDomain?.min) || 1)
+    return padT + (activeDef?.invertAxis ? ratio : 1 - ratio) * (H - padT - padB)
+  }
+  const miAtX = px => Math.min(activityTotalMi, Math.max(0,
+    (px - padL) / (W - padL - padR) * activityTotalMi))
   geom = { W, H, padL, padR, padT, padB, x, y, miAtX }
 
   const svg = document.createElementNS(NS, 'svg')
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
 
-  // night bands from the pace model
+  // Night bands follow the recorded clock, not a projected pace.
   for (const [m0, m1] of nightBands()) {
     const r = rect(x(m0), padT, Math.max(1, x(m1) - x(m0)), H - padT - padB,
       'rgba(0,0,0,0.04)')
     svg.appendChild(r)
   }
+  appendEventProfileOverlays(svg, x, padT, padB, H)
 
   // elevation gridlines
   for (let e = eMin; e <= eMax; e += 500) {
     svg.appendChild(line(padL, y(e), W - padR, y(e), 'rgba(0,0,0,0.05)', 1))
-    svg.appendChild(text(padL - 6, y(e) + 3, e.toLocaleString(), 'end', 8.5, 'rgba(0,0,0,0.35)'))
+    svg.appendChild(text(padL - 6, y(e) + 3, e.toLocaleString(), 'end', 9.25, 'rgba(0,0,0,0.48)'))
   }
-  // Secondary elevation axis in round metric intervals.
+  // The right axis follows the active signal; otherwise it mirrors elevation in metres.
   const axisX = W - padR
-  const ftPerM = 3.28084
-  const firstMeter = Math.ceil((eMin / ftPerM) / 200) * 200
-  const lastMeter = Math.floor((eMax / ftPerM) / 200) * 200
   svg.appendChild(line(axisX, padT, axisX, H - padB, 'rgba(0,0,0,0.12)', 1))
-  for (let m = firstMeter; m <= lastMeter; m += 200) {
-    const py = y(m * ftPerM)
-    svg.appendChild(line(axisX, py, axisX + 4, py, 'rgba(0,0,0,0.3)', 1))
-    svg.appendChild(text(axisX + 7, py + 3, `${m} m`, 'start', 8.5, 'rgba(0,0,0,0.35)'))
+  if (activeDef) {
+    for (const ratio of [0, 0.5, 1]) {
+      const value = activeDef.invertAxis
+        ? activeDomain.min + (activeDomain.max - activeDomain.min) * ratio
+        : activeDomain.max - (activeDomain.max - activeDomain.min) * ratio
+      const py = padT + ratio * (H - padT - padB)
+      svg.appendChild(line(axisX, py, axisX + 4, py, activeDef.color, 1))
+      svg.appendChild(text(
+        axisX + 7,
+        py + 3,
+        activeDef.format(value),
+        'start',
+        9,
+        activeDef.color,
+      ))
+    }
+  } else {
+    const ftPerM = 3.28084
+    const firstMeter = Math.ceil((eMin / ftPerM) / 200) * 200
+    const lastMeter = Math.floor((eMax / ftPerM) / 200) * 200
+    for (let m = firstMeter; m <= lastMeter; m += 200) {
+      const py = y(m * ftPerM)
+      svg.appendChild(line(axisX, py, axisX + 4, py, 'rgba(0,0,0,0.3)', 1))
+      svg.appendChild(text(axisX + 7, py + 3, `${m} m`, 'start', 9.25, 'rgba(0,0,0,0.48)'))
+    }
   }
-  // mile ticks
-  for (let m = 10; m < course.totalMi; m += 10) {
+  // Mile ticks
+  for (let m = 10; m < activityTotalMi; m += 10) {
     svg.appendChild(line(x(m), H - padB, x(m), H - padB + 4, 'rgba(0,0,0,0.3)', 1))
-    svg.appendChild(text(x(m), H - 6, m, 'middle', 8.5, 'rgba(0,0,0,0.35)'))
+    svg.appendChild(text(x(m), H - 6, m, 'middle', 9.25, 'rgba(0,0,0,0.48)'))
   }
 
-  // line path (sample every ~2px); closed variant used only for the selection wash
-  const step = course.totalMi / Math.max(180, Math.floor(W / 2))
-  let dLine = `M ${x(0)} ${y(ptAt(0).ele)}`
-  for (let m = step; m <= course.totalMi + 1e-9; m += step) {
-    const mm = Math.min(m, course.totalMi)
-    dLine += ` L ${x(mm).toFixed(1)} ${y(ptAt(mm).ele).toFixed(1)}`
+  // Recorded elapsed-time ticks form a second, non-linear x-axis.
+  for (const tick of activityTimeTicks()) {
+    const px = x(tick.mi)
+    const hours = Math.round(tick.elapsedS / 3600)
+    svg.appendChild(line(px, padT, px, H - padB, 'rgba(0,0,0,0.08)', 1, '2 3'))
+    svg.appendChild(text(
+      px,
+      10,
+      tick.elapsedS >= activitySummary.elapsedS ? 'finish' : `${hours}h`,
+      'middle',
+      9.25,
+      'rgba(0,0,0,0.52)',
+    ))
   }
-  const dArea = dLine + ` L ${x(course.totalMi)} ${H - padB} L ${x(0)} ${H - padB} Z`
+
+  // Actual elevation path; closed variant is used for the selection wash.
+  const maxPoints = Math.max(300, Math.floor(W * 1.5))
+  const trackStep = Math.max(1, Math.floor(activityTrack.length / maxPoints))
+  const profilePoint = sample =>
+    `${x(displayMiFromRawM(sample[3])).toFixed(1)} ${y(sample[2] * FT_PER_M).toFixed(1)}`
+  let dLine = `M ${profilePoint(activityTrack[0])}`
+  for (let index = trackStep; index < activityTrack.length; index += trackStep) {
+    dLine += ` L ${profilePoint(activityTrack[index])}`
+  }
+  dLine += ` L ${profilePoint(activityTrack.at(-1))}`
+  const dArea = dLine + ` L ${x(activityTotalMi)} ${H - padB} L ${x(0)} ${H - padB} Z`
 
   const ranges = selectionRanges()
   const defs = document.createElementNS(NS, 'defs')
@@ -2369,6 +2219,25 @@ function renderProfile() {
     defs.appendChild(clip)
   })
   svg.appendChild(defs)
+
+  if (activeMetric) {
+    appendMetricBars(
+      svg,
+      activeMetric,
+      activeDef,
+      activeValues,
+      yMetric,
+      padL,
+      padR,
+      padT,
+      padB,
+      W,
+      H,
+    )
+  }
+  if (activeEvents.has('movement')) {
+    appendMovementProfileBars(svg, x, padB, H)
+  }
 
   // Every selected range gets a yellow wash; the black drawing stays untouched.
   ranges.forEach((range, i) => {
@@ -2382,30 +2251,11 @@ function renderProfile() {
   }
   // Draw the contour after the wash so it remains solid black and fully opaque.
   svg.appendChild(path(dLine, 'none', C.ink, 1.4))
-  if (activityVisible && activity.track.length > 1) {
-    const maxPoints = Math.max(300, Math.floor(W * 1.5))
-    const activityStep = Math.max(1, Math.floor(activity.track.length / maxPoints))
-    const trackDistanceM = activity.track.at(-1)[3]
-    const activityPoint = sample => {
-      const activityMi = sample[3] / trackDistanceM * course.totalMi
-      const activityY = y(sample[2] * 3.28084)
-      return `${x(activityMi).toFixed(1)} ${Math.min(H - padB, Math.max(padT, activityY)).toFixed(1)}`
-    }
-    let activityPath = `M ${activityPoint(activity.track[0])}`
-    for (let i = activityStep; i < activity.track.length; i += activityStep) {
-      activityPath += ` L ${activityPoint(activity.track[i])}`
-    }
-    activityPath += ` L ${activityPoint(activity.track.at(-1))}`
-    const actualLine = path(activityPath, 'none', C.activity, 1.25)
-    actualLine.setAttribute('class', 'activity-profile-line')
-    actualLine.setAttribute('vector-effect', 'non-scaling-stroke')
-    svg.appendChild(actualLine)
-  }
 
-  // waypoint ticks (crew stops only, keeps it clean)
+  // Actual crew-stop passages.
   for (const w of waypoints) {
     if (!w.crew || w.kind !== 'major') continue
-    const px = x(w.mi), py = y(ptAt(w.mi).ele)
+    const px = x(w.mi), py = y(w.altitudeM * FT_PER_M)
     const c = document.createElementNS(NS, 'circle')
     c.setAttribute('cx', px); c.setAttribute('cy', py); c.setAttribute('r', 2.3)
     c.setAttribute('fill', C.routeHighlight)
@@ -2420,7 +2270,7 @@ function renderProfile() {
       .filter(item => item.id === selectedMediaId)
       .forEach((item, index) => {
       const px = x(item.mi)
-      const py = y(ptAt(item.mi).ele)
+      const py = y(activityPointAtMi(item.mi).altitudeM * FT_PER_M)
       const selected = item.id === selectedMediaId
       const markerSize = selected ? 20 : 16
       const markerX = px - markerSize / 2
@@ -2508,13 +2358,13 @@ function renderProfile() {
   for (const ev of sunEvents()) {
     const px = x(ev.mi)
     svg.appendChild(line(px, padT, px, H - padB, 'rgba(0,0,0,0.3)', 1, '2 3'))
-    svg.appendChild(text(px + 4, padT + 8, `${ev.icon} ${hhmm(ev.t)}`, 'start', 8.5, 'rgba(0,0,0,0.5)'))
+    svg.appendChild(text(px + 4, padT + 8, `${ev.icon} ${hhmm(ev.t)}`, 'start', 9.25, 'rgba(0,0,0,0.58)'))
   }
 
   // GPS position is projected onto the nearest course mile.
   if (userLocation) {
     const px = x(userLocation.mi)
-    const py = y(ptAt(userLocation.mi).ele)
+    const py = y(activityPointAtMi(userLocation.mi).altitudeM * FT_PER_M)
     svg.appendChild(line(px, padT, px, H - padB, 'rgba(79,130,151,0.55)', 1.2, '3 3'))
     const c = document.createElementNS(NS, 'circle')
     c.setAttribute('cx', px); c.setAttribute('cy', py); c.setAttribute('r', 3)
@@ -2533,12 +2383,29 @@ function renderProfile() {
 
   // hover crosshair
   if (hoverMi != null && !dragging) {
-    const px = x(hoverMi), py = y(ptAt(hoverMi).ele)
+    const px = x(hoverMi)
+    const py = y(activityPointAtMi(hoverMi).altitudeM * FT_PER_M)
     svg.appendChild(line(px, padT, px, H - padB, 'rgba(0,0,0,0.25)', 1))
     const c = document.createElementNS(NS, 'circle')
     c.setAttribute('cx', px); c.setAttribute('cy', py); c.setAttribute('r', 3)
     c.setAttribute('fill', C.ink); c.setAttribute('stroke', '#ffffff'); c.setAttribute('stroke-width', 1.4)
     svg.appendChild(c)
+    if (activeMetric) {
+      const value = metricValueAtMi(activeMetric, hoverMi)
+      if (Number.isFinite(value)) {
+        const signalDot = document.createElementNS(NS, 'circle')
+        signalDot.setAttribute('cx', px)
+        signalDot.setAttribute(
+          'cy',
+          Math.min(H - padB, Math.max(padT, yMetric(value))),
+        )
+        signalDot.setAttribute('r', 3.2)
+        signalDot.setAttribute('fill', activeDef.color)
+        signalDot.setAttribute('stroke', C.paper)
+        signalDot.setAttribute('stroke-width', 1.4)
+        svg.appendChild(signalDot)
+      }
+    }
   }
 
   chart.innerHTML = ''
@@ -2577,32 +2444,32 @@ const path = (d, fill, stroke, sw) => {
   return p
 }
 
-// dark segments of the run, in course miles, from the pace model
+// Dark segments of the recorded activity, in verified activity miles.
 function nightBands() {
   const bands = []
-  const stepMi = course.totalMi / 400
-  let dark = isDark(etaAt(0))
+  const stepMi = activityTotalMi / 400
+  let dark = isDark(activityClockAtMi(0))
   let bandStart = dark ? 0 : null
-  for (let m = stepMi; m <= course.totalMi; m += stepMi) {
-    const d = isDark(etaAt(m))
+  for (let m = stepMi; m <= activityTotalMi; m += stepMi) {
+    const d = isDark(activityClockAtMi(m))
     if (d && !dark) bandStart = m
     if (!d && dark) { bands.push([bandStart, m]); bandStart = null }
     dark = d
   }
-  if (dark && bandStart != null) bands.push([bandStart, course.totalMi])
+  if (dark && bandStart != null) bands.push([bandStart, activityTotalMi])
   return bands
 }
 function isDark(t) {
   const s = sunTimes(t)
   return t < s.sunrise || t > s.sunset
 }
-// sunset/sunrise crossings mapped onto course miles
+// Sunset/sunrise crossings mapped onto the recorded timeline.
 function sunEvents() {
   const out = []
-  const stepMi = course.totalMi / 600
-  let prev = isDark(etaAt(0))
-  for (let m = stepMi; m <= course.totalMi; m += stepMi) {
-    const t = etaAt(m)
+  const stepMi = activityTotalMi / 600
+  let prev = isDark(activityClockAtMi(0))
+  for (let m = stepMi; m <= activityTotalMi; m += stepMi) {
+    const t = activityClockAtMi(m)
     const d = isDark(t)
     if (d !== prev) out.push({ mi: m, t, icon: d ? '☾' : '☀' })
     prev = d
@@ -2650,7 +2517,7 @@ chart.addEventListener('pointerup', e => {
     sel = null
     syncSelToMap()
     if (map) {
-      const p = ptAt(mi)
+      const p = activityPointAtMi(mi)
       stopOrbit()
       map.flyTo({ center: [p.lon, p.lat], zoom: 13.2, duration: 1600 })
     }
@@ -2676,9 +2543,10 @@ window.addEventListener('keydown', e => {
 function syncSelToMap() {
   const src = map?.getSource('course-sel')
   if (!src) return
+  const ranges = selectionRanges()
   src.setData({
     type: 'FeatureCollection',
-    features: selectionRanges().map(range => sliceLine(range.a, range.b)),
+    features: ranges.map(range => activitySliceFeature(range.a, range.b)),
   })
 }
 
@@ -2701,54 +2569,77 @@ function renderStats() {
     const metric =
       `<b>${fmtKm(total.mi)} km</b> <span class="dim">·</span> ` +
       `<b>+${fmtM(total.gain)} m</b> <span class="dim">/ −${fmtM(total.loss)} m</span>`
-    let time = `<b>${fmtDuration(total.duration)}</b> <span class="dim">combined</span>`
+    let time = `<b>${activityDuration(total.duration / 1000)}</b> <span class="dim">elapsed</span>`
     if (segments.length === 1) {
       const { from, to } = segments[0]
-      time = `${hhmm(etaAt(from.mi))}→${hhmm(etaAt(to.mi))} ` +
-        `<span class="dim">(${fmtDuration(total.duration)})</span>`
+      time = `${hhmm(activityClockAtMi(from.mi))}→${hhmm(activityClockAtMi(to.mi))} ` +
+        `<span class="dim">(${activityDuration(total.duration / 1000)})</span>`
     }
     el.innerHTML = statsColumns(imperial, time, metric)
   } else if (sel) {
     const a = Math.min(sel.a, sel.b), b = Math.max(sel.a, sel.b)
-    const s = statsBetween(a, b)
-    const t0 = etaAt(a), t1 = etaAt(b)
+    const s = activityStatsBetween(a, b)
+    const t0 = s.startAt, t1 = s.finishAt
+    const signalStats = activeMetric ? metricStatsBetween(activeMetric, a, b) : null
+    const signal = signalStats
+      ? ` <span class="signal" style="color:${METRIC_BY_KEY[activeMetric].color}">` +
+        `<span class="dim">·</span> avg ${METRIC_BY_KEY[activeMetric].label} ` +
+        `<b>${METRIC_BY_KEY[activeMetric].format(signalStats.avg)}</b></span>`
+      : ''
     const imperial =
       `mi ${fmtMi(a)}–${fmtMi(b)} <span class="dim">·</span> <b>${s.mi.toFixed(1)} mi</b> ` +
-      `<span class="dim">·</span> <b>+${fmtFt(s.gain)} ft</b> <span class="dim">/ −${fmtFt(s.loss)} ft</span>`
+      `<span class="dim">·</span> <b>+${fmtFt(s.gain)} ft</b> ` +
+      `<span class="dim">/ −${fmtFt(s.loss)} ft</span>${signal}`
     const time =
-      `${hhmm(t0)}→${hhmm(t1)} <span class="dim">(${((t1 - t0) / 3600000).toFixed(1)} h)</span>`
+      `${hhmm(t0)}→${hhmm(t1)} <span class="dim">(${activityDuration(s.elapsedS)} elapsed)</span>`
     const metric =
       `km ${fmtKm(a)}–${fmtKm(b)} <span class="dim">·</span> <b>${fmtKm(s.mi)} km</b> ` +
       `<span class="dim">·</span> <b>+${fmtM(s.gain)} m</b> <span class="dim">/ −${fmtM(s.loss)} m</span>`
     el.innerHTML = statsColumns(imperial, time, metric)
   } else if (hoverMi != null) {
-    const p = ptAt(hoverMi)
-    const g = gradeAt(hoverMi)
-    const t = etaAt(hoverMi)
+    const p = activityPointAtMi(hoverMi)
+    const g = activityGradeAt(hoverMi)
+    const t = activityClockAtMi(hoverMi)
     const grade = `${g >= 0 ? '+' : ''}${g.toFixed(1)}%`
+    const signalValue = activeMetric ? metricValueAtMi(activeMetric, hoverMi) : null
+    const signal = Number.isFinite(signalValue)
+      ? ` <span class="signal" style="color:${METRIC_BY_KEY[activeMetric].color}">` +
+        `<span class="dim">·</span> ${METRIC_BY_KEY[activeMetric].label} ` +
+        `<b>${METRIC_BY_KEY[activeMetric].format(signalValue)}</b></span>`
+      : ''
     const imperial =
-      `mile <b>${fmtMi(hoverMi)}</b> <span class="dim">·</span> ${fmtFt(p.ele)} ft ` +
-      `<span class="dim">·</span> ${grade}`
+      `mile <b>${fmtMi(hoverMi)}</b> <span class="dim">·</span> ${fmtFt(p.altitudeM * FT_PER_M)} ft ` +
+      `<span class="dim">·</span> ${grade}${signal}`
     const metric =
-      `km <b>${fmtKm(hoverMi)}</b> <span class="dim">·</span> ${fmtM(p.ele)} m ` +
+      `km <b>${fmtKm(hoverMi)}</b> <span class="dim">·</span> ${Math.round(p.altitudeM)} m ` +
       `<span class="dim">·</span> ${grade}`
-    el.innerHTML = statsColumns(imperial, `ETA ${hhmm(t)}`, metric)
+    el.innerHTML = statsColumns(
+      imperial,
+      `${hhmm(t)} <span class="dim">· ${activityDuration(p.elapsedS)} elapsed</span>`,
+      metric,
+    )
   } else {
+    const minFt = activitySummary.minAltitudeM * FT_PER_M
+    const maxFt = activitySummary.maxAltitudeM * FT_PER_M
+    const gainFt = activitySummary.elevationGainM * FT_PER_M
     const imperial =
-      `<b>${course.totalMi} mi</b> <span class="dim">·</span> <b>+${fmtFt(course.gainFt)} ft</b> ` +
-      `<span class="dim">/ −${fmtFt(course.lossFt)} ft</span> <span class="dim">·</span> ` +
-      `${fmtFt(course.minEleFt)}–${fmtFt(course.maxEleFt)} ft`
+      `<b>${activityTotalMi.toFixed(2)} mi</b> <span class="dim">·</span> <b>+${fmtFt(gainFt)} ft</b> ` +
+      `<span class="dim">·</span> ${fmtFt(minFt)}–${fmtFt(maxFt)} ft`
     const metric =
-      `<b>${fmtKm(course.totalMi)} km</b> <span class="dim">·</span> <b>+${fmtM(course.gainFt)} m</b> ` +
-      `<span class="dim">/ −${fmtM(course.lossFt)} m</span> <span class="dim">·</span> ` +
-      `${fmtM(course.minEleFt)}–${fmtM(course.maxEleFt)} m`
-    el.innerHTML = statsColumns(imperial, '', metric)
+      `<b>${(activitySummary.distanceM / 1000).toFixed(2)} km</b> <span class="dim">·</span> ` +
+      `<b>+${Math.round(activitySummary.elevationGainM).toLocaleString()} m</b> <span class="dim">·</span> ` +
+      `${Math.round(activitySummary.minAltitudeM)}–${Math.round(activitySummary.maxAltitudeM)} m`
+    el.innerHTML = statsColumns(
+      imperial,
+      `${hhmm(new Date(activityStartMs))}→${hhmm(new Date(activityFinishMs))} ` +
+        `<span class="dim">(${activityDuration(activitySummary.elapsedS)})</span>`,
+      metric,
+    )
   }
 }
 
 new ResizeObserver(() => renderProfile()).observe(chart)
 
 // ---------------------------------------------------------------- boot
-$('#totals').textContent =
-  `${course.totalMi} mi · +${fmtFt(course.gainFt)} ft · high ${fmtFt(course.maxEleFt)} ft`
-refreshPlan()
+renderList()
+renderProfile()

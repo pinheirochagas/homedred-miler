@@ -1,5 +1,5 @@
-import crewPlanCsv from '../../crew/crew_plan.csv?raw'
-import { waypoints } from './waypoints.js'
+import crewPlanCsv from '../../crew/crew_plan.csv?raw&v=actual-record-20260810'
+import { waypoints } from './waypoints.js?v=actual-activity-20260810'
 
 function parseCsv(text) {
   const rows = []
@@ -42,10 +42,11 @@ const normalizeName = value => optional(value)
   .replace(/\bTennesse\b/g, 'Tennessee')
 const normalizePacers = value => normalizeName(value)
   .replace(/\b(\d+)\b/g, 'Pacer $1')
-const normalizeNotes = value => normalizeName(value)
-  .replace(/\b(\d+)\b/g, 'Pacer $1')
-  .replace(/\band meet me\b/gi, 'and meets me')
-  .replace(/\bJonathan Brings\b/g, 'Jonathan brings')
+const elapsedSeconds = value => {
+  const parts = clean(value).split(':').map(Number)
+  if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) return null
+  return parts[0] * 3600 + parts[1] * 60 + parts[2]
+}
 
 const [headers, ...records] = parseCsv(crewPlanCsv)
 const column = Object.fromEntries(headers.map((header, index) => [header.trim(), index]))
@@ -59,14 +60,22 @@ export const crewPlan = records.map(record => {
   const segment = Number(cell(record, 'SEGMENT'))
   const waypoint = crewWaypoints[segment - 1]
   if (!waypoint) throw new Error(`Crew plan segment ${segment} has no matching waypoint`)
+  const mileValue = clean(cell(record, 'MILE'))
+  const csvMile = mileValue === '' ? null : Number(mileValue)
+  const actualMileValue = clean(cell(record, 'ACTUAL MILE'))
+  const actualMi = actualMileValue === '' ? null : Number(actualMileValue)
   return {
     segment,
-    mi: waypoint.mi,
+    waypointId: waypoint.id,
+    mi: Number.isFinite(csvMile) ? csvMile : waypoint.mi,
+    actualMi: Number.isFinite(actualMi) ? actualMi : null,
+    arrived: clean(cell(record, 'ARRIVED')),
+    elapsedS: elapsedSeconds(cell(record, 'ELAPSED')),
     name: clean(cell(record, 'AID STATION')) || waypoint.name,
     pacerIn: normalizePacers(cell(record, 'PACER IN')),
     pacerOut: normalizePacers(cell(record, 'PACER OUT')),
     supplies: normalizeName(cell(record, 'CAR SUPPLY')),
     transport: normalizeName(cell(record, 'TRANSPORT')),
-    notes: normalizeNotes(cell(record, 'NOTES')),
+    notes: normalizeName(cell(record, 'NOTES')),
   }
 })

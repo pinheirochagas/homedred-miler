@@ -1,16 +1,16 @@
-SEGMENT,AID STATION,PACER IN,PACER OUT,CAR SUPPLY,TRANSPORT,CONFIRM,NOTES,Suggestions,Pacers,Notes
-1,Start — Golden Gate Park,Jojo,Jojo,n/a,n/a,,Jojo meets at the Rose Garden,1,Jojo ,I can pick you up and Stef can drop you off
-2,GGB south · Welcome Center,Jojo,Jim + Jojo,n/a,n/a,,Jim meets us on the GGB Welcome Center,2,Trill + Sara,"Trill + Sara, you could do out-and-back from Muir Beach."
-3,GGB north · Vista Point,Jim + Jojo,Jim + Jojo,n/a,n/a,,,3,Anna + Eliza,"Since you might be with Max, this could be handy. Doug could bring you to TV and Brian could give you a ride home"
-4,Rodeo Beach,Jim + Jojo,Jim + Jojo,Stef,Stef,,Stef brings Rodeo to Rodeo Beach,3,Max + Doug,And the girls could drive the cars
-5,Muir Beach,Jim + Jojo,Trill + Sara,Stef,Stef,,Stef drives Jojo and Jim back home. Trill + Sara out-and-back from Muir Beach,3,Robby,Will need to coordinate your ride there 
-6,Pantoll Ranger Station,Trill + Sara,Trill + Sara,Jonathan,n/a,,,4,Mathilde + Nick,Stef can coordinate the rides
-7,Stinson Beach,Trill + Sara,Jonathan,Jonathan,n/a,,Jonathan drives to Stinson Beach,Additional suggestions,,
-8,Bolinas Ridge Trailhead,Jonathan,Andrey,Doug,Doug,,Doug drops Andrey from his home - Doug drives Jonathan back to Stinson.,"Mathilde, maybe you can join Margaritta for the final strech, after Robin's family is gone?",,
-9,Leo T. Cronin roadside,Andrey,Andrey,Doug,Doug,,,"Nick, maybe you could also join in the end, we can figure out a ride. ",,
-10,Bolinas Rd × Sky Oaks Rd,Andrey,3,Doug,Doug,,Doug drives Andrey back home ,,,
-11,Mt Tam East Peak,3,Max + Anna + Eliza,n/a,n/a,,,,,
-12,Mountain Home Inn,Max + Anna + Eliza,Brian,Jonathan,n/a,,Brian drives to Tennessee Valley and meet me at Mountain Home Inn.,,,
-13,Tennessee Valley,Brian,Margaritta,Jonathan,n/a,,Margaritta drives to Tennessee Valley,,,
-14,GGB north · return,Margaritta,n/a,Jonathan,Jonathan,,Jonathan brings Margaritta back to her car at Tennessee Valley.,,,
-15,GGB south · return,n/a,Angie,Stef,Stef,,Angie + Stef + Rodeo meet on the south bridge for the home strech,,,
+SEGMENT,MILE,ACTUAL MILE,ARRIVED,ELAPSED,AID STATION,PACER IN,PACER OUT,CAR SUPPLY,TRANSPORT,NOTES
+1,0,0.0,Sat 10:00,0:00:00,Start — Golden Gate Park,Jojo,Jojo,n/a,n/a,Jojo met at the Rose Garden
+2,4.1,3.7,Sat 10:38,0:37:50,GGB south · Welcome Center,Jojo,Jim + Jojo + Doug,n/a,n/a,Jim + Doug met us at the GGB Welcome Center
+3,5.9,5.7,Sat 10:59,0:59:10,GGB north · Vista Point,Jim + Jojo + Doug,Jim + Jojo + Doug,n/a,n/a,
+4,10.8,10.7,Sat 11:55,1:54:25,Rodeo Beach,Jim + Jojo + Doug,Jim + Doug,Stef,Stef,"Stef brought Rodeo to Rodeo Beach; Doug left"
+5,17.2,17.1,Sat 13:29,3:29:05,Muir Beach,Jim + Doug,Sara,Stef,Stef,Stef drove Jojo and Jim home. Trill + Sara ran an out-and-back from Muir Beach
+6,22.9,22.9,Sat 14:56,4:55:45,Pantoll Ranger Station,Sara,Sara + Willis,Max,n/a,
+7,26.9,27.0,Sat 15:55,5:54:35,Stinson Beach,Sara + Willis,Jonathan + Trillium,Max,n/a,Jonathan drove to Stinson Beach
+8,43.5,44.2,Sat 19:57,9:56:30,Bolinas Ridge Trailhead,Jonathan + Trillium,Andrey + Max,Doug,Doug,Doug brought Nick and picked up Andrey at home; Doug drove Jonathan back to Stinson
+9,49.5,50.4,Sat 21:14,11:13:50,Leo T. Cronin roadside,Andrey + Max,Andrey + Anna + Eliza,Doug,Doug,Doug and Nick met us there
+10,65,66.1,Sun 01:19,15:19:01,Bolinas Rd × Sky Oaks Rd,Andrey + Anna + Eliza,Nick,Doug,Doug,Nick took over. Doug drove Andrey home and gave the supplies to Jonathan
+11,76.1,77.9,Sun 05:35,19:35:10,Mt Tam East Peak,Nick,Nick,n/a,n/a,Max + Anna + Eliza started from Mountain Home Inn and ran toward East Peak. Nick hiked down to Mountain Home Inn and got into Jonathan's car
+12,80.5,82.6,Sun 07:17,21:16:45,Mountain Home Inn,Nick,Brian,Jonathan,n/a,Brian drove to Tennessee Valley and ran to meet me at Mountain Home Inn
+13,88.9,91.4,Sun 09:17,23:16:53,Tennessee Valley,Brian,Soledad + Margaritta + Mathilde,Jonathan,n/a,Jonathan picked up Margarita + Mathilde and drove them to Tennessee Valley. The source also listed the bus as an alternative. Brian brought Nick home
+14,94.1,96.7,Sun 10:25,24:24:28,GGB north · return,Soledad + Margaritta + Mathilde,Soledad + Margaritta + Mathilde,Jonathan,Jonathan,Jonathan met us at the last aid
+15,95.9,98.5,Sun 10:45,24:45:13,GGB south · return,Soledad + Margaritta + Mathilde,Soledad + Margaritta + Mathilde + Angie,Stef,Stef,Angie + Stef + Rodeo met on the south bridge for the home stretch

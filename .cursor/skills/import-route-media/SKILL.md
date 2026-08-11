@@ -37,6 +37,8 @@ optimized assets. Put intentional title or alt-text exceptions in
 3. Extract metadata before conversion:
    - Photos/RAW: `DateTimeOriginal`, offset/timezone, GPS, orientation, camera, dimensions.
    - Video/audio: creation time, duration, rotation, dimensions, codecs, and QuickTime ISO 6709 location.
+   - For edited Apple videos, prefer `com.apple.quicktime.creationdate` over generic
+     `creation_time`; the latter may describe the export instead of the original capture.
    - Prefer embedded capture metadata over filesystem modification dates.
 4. Create or update `app/src/media-manifest.json`. Store source paths relative to the supplied root, never absolute personal paths.
 5. Give each item a stable unique slug ID and classify it as `photo`, `video`, `audio`, `duplicate`, `unsupported`, or `needs-review`.
@@ -57,6 +59,7 @@ Each manifest record should retain:
   "locationConfidence": "high|medium|low|unresolved",
   "routeMi": null,
   "routeOffsetM": null,
+  "creator": "Name credited by the source-folder owner",
   "title": "Human-readable title",
   "alt": "Accurate description",
   "status": "resolved|needs-review|duplicate|unsupported",
@@ -97,7 +100,7 @@ Before asset generation, summarize counts for direct GPS, activity-matched, manu
 
 Write generated files only under `app/src/assets/media/`. Use deterministic filenames based on the manifest ID.
 
-- **Photos/RAW:** apply orientation, convert unsupported formats to web JPEG, create a lightweight thumbnail and an optimized display image, and preserve aspect ratio.
+- **Photos/RAW:** include JPEG, HEIC/HEIF, and supported RAW inputs; apply orientation, convert unsupported browser formats to web JPEG, create a lightweight thumbnail and an optimized display image, and preserve aspect ratio.
 - **Video:** create H.264/AAC MP4 with `yuv420p` and fast-start, preserve orientation/aspect ratio, and extract a representative JPEG poster.
 - **Audio:** retain or create a browser-compatible audio file and generate the existing iPhone-style bar waveform SVG.
   - Bars must divide the complete audio duration into equal time bins.
@@ -115,7 +118,7 @@ Do not upscale small media or discard originals.
 
 ## App integration
 
-- Preserve the `mediaItems` contract in `app/src/media.js`: `id`, `type`, `src`, `thumbnailSrc`, optional `mimeType`, `title`, `alt`, optional `capturedAt`, `lat`, `lon`, `width`, and `height`.
+- Preserve the `mediaItems` contract in `app/src/media.js`: `id`, `type`, `src`, `thumbnailSrc`, optional `mimeType`, `title`, `alt`, optional `creator`, optional `capturedAt`, `lat`, `lon`, `width`, and `height`.
 - For a large batch, generate the imports/catalog deterministically rather than hand-maintaining dozens of imports.
 - Do not regress one-click map opening, elevation-profile selection, popup resizing, or photo/video/audio behavior.
 

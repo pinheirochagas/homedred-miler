@@ -28,7 +28,6 @@
             stroke-linecap="round" stroke-linejoin="round" />
         </svg>
         Headlands</p>
-      <p class="tot" id="totals"></p>
     </header>
 
     <nav id="mapctl" aria-label="Map controls">
@@ -37,8 +36,7 @@
       <button id="ctl-orbit">orbit</button>
       <button id="ctl-fit">frame</button>
       <button id="ctl-location" aria-live="polite">my location</button>
-      <button id="ctl-activity" class="layer-start on" aria-pressed="true">activity</button>
-      <button id="ctl-media" class="on" aria-pressed="true">media</button>
+      <button id="ctl-media" class="layer-start on" aria-pressed="true">media</button>
       <button id="ctl-water" aria-pressed="false">water</button>
       <button id="ctl-bathrooms" aria-pressed="false">bathrooms</button>
       <button id="ctl-parking" aria-pressed="false">parking</button>
@@ -50,45 +48,37 @@
       <p><span class="motivation-lead">FEW</span> places in the world can accommodate my wildest ideas. This adventure is a celebration of this city and the gentle mountains that surround us. It's also an opportunity to <strong class="ego">dissolve my ego</strong> as I prepare for parenthood and to introduce my future child to my favorite trails, all with the support and company of my incredible community.</p>
     </section>
 
-    <section id="plan">
-      <div class="plan-head">
-        <span class="lbl">Crew plan</span>
-        <span id="plan-finish"></span>
-      </div>
-      <div class="plan-grid">
-        <label>
-          <span class="lbl">Start</span>
-          <input type="datetime-local" id="plan-start" />
-        </label>
-        <label>
-          <span class="lbl">Target <b id="plan-hours-out"></b></span>
-          <input type="range" id="plan-hours" min="20" max="44" step="0.5" />
-        </label>
+    <section id="actual-summary" aria-label="Recorded totals and conditions">
+      <span id="actual-date"></span>
+      <div class="actual-summary-grid">
+        <span><b id="actual-distance"></b><small>miles</small></span>
+        <span><b id="actual-elapsed"></b><small>elapsed</small></span>
+        <span><b id="actual-moving"></b><small>moving</small></span>
+        <span><b id="actual-start"></b><small>started</small></span>
+        <span><b id="actual-finish"></b><small>finished</small></span>
+        <span><b id="actual-gain"></b><small>elevation</small></span>
+        <span><b id="actual-pace"></b><small>average pace</small></span>
+        <span><b id="actual-effort"></b><small>relative effort</small></span>
+        <span><b id="actual-calories"></b><small>calories</small></span>
+        <span><b id="actual-condition"></b><small>conditions</small></span>
+        <span><b id="actual-temperature"></b><small>temperature</small></span>
+        <span><b id="actual-humidity"></b><small>humidity</small></span>
+        <span><b id="actual-feels"></b><small>feels like</small></span>
+        <span><b id="actual-wind"></b><small>wind speed</small></span>
+        <span><b id="actual-wind-direction"></b><small>wind direction</small></span>
       </div>
     </section>
 
     <div id="filters">
-      <button data-f="all">all</button>
-      <button data-f="activity" class="on">activity</button>
-      <button data-f="crew">crew</button>
+      <button data-f="crew">crew record</button>
       <button data-f="water">water</button>
       <button data-f="bathrooms">bathrooms</button>
       <button data-f="parking">parking</button>
-      <button data-f="gated">gated</button>
-      <button data-f="segments">segments</button>
-      <button data-f="supplies">supplies</button>
+      <button data-f="gated">access</button>
+      <button data-f="segments">splits</button>
     </div>
 
     <div id="segment-summary" hidden aria-live="polite"></div>
-    <div id="supplies-summary" hidden aria-live="polite"></div>
-    <form id="supplies-editor" aria-label="Add supply item" hidden>
-      <input id="supply-name" type="text" maxlength="80" placeholder="new item" autocomplete="off" required />
-      <select id="supply-category" aria-label="Supply category"></select>
-      <span class="supply-editor-actions">
-        <button type="submit">add</button>
-        <button type="button" id="supply-cancel">cancel</button>
-      </span>
-    </form>
     <ol id="wplist"></ol>
 
     <footer id="legend">
@@ -101,11 +91,28 @@
     <div id="pstats">
       <div id="pstats-main"></div>
     </div>
+    <nav id="metric-controls" aria-label="Route and profile overlays">
+      <button data-metric="pace" aria-pressed="false">pace</button>
+      <button data-metric="gradeAdjustedPace" aria-pressed="false">grade-adjusted pace</button>
+      <button data-metric="heartRate" aria-pressed="false">heart rate</button>
+      <button data-metric="power" aria-pressed="false">power</button>
+      <button data-metric="cadence" aria-pressed="false">cadence</button>
+      <button data-metric="temperature" aria-pressed="false">device temp</button>
+      <button data-metric="verticalOscillation" aria-pressed="false">vertical oscillation</button>
+      <button data-metric="groundContact" aria-pressed="false">ground contact</button>
+      <button data-metric="verticalRatio" aria-pressed="false">vertical ratio</button>
+      <button data-metric="strideLength" aria-pressed="false">stride length</button>
+      <button data-metric="grade" aria-pressed="false">grade</button>
+      <button data-metric="verticalSpeed" aria-pressed="false">vertical speed</button>
+      <button class="context-start" data-event="movement" aria-pressed="false">run / walk</button>
+      <button data-event="climbs" aria-pressed="false">climbs</button>
+      <button data-event="offCourse" aria-pressed="false">off course</button>
+    </nav>
     <div id="pchart"></div>
   </section>
 
   <div id="err" hidden></div>
 
-  <script type="module" src="/src/main.js?v=activity-default-20260809"></script>
+  <script type="module" src="/src/main.js?v=gap-20260811"></script>
 </body>
 </html>

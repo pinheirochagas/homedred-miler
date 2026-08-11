@@ -24,7 +24,7 @@ except ImportError as error:
 
 SEMICIRCLE_TO_DEGREES = 180 / 2**31
 M_PER_MI = 1609.344
-SUPPORTED_PHOTOS = {".jpg", ".jpeg"}
+SUPPORTED_PHOTOS = {".jpg", ".jpeg", ".heic", ".heif"}
 SUPPORTED_VIDEOS = {".mov", ".mp4", ".m4v"}
 ISO6709 = re.compile(r"([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)(?:[+-]\d+(?:\.\d+)?)?/")
 
@@ -59,6 +59,25 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def slugify(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+
+def media_identity(
+    path: Path, source_root: Path, default_creator: str | None
+) -> tuple[str, str, str | None, Path]:
+    relative = path.relative_to(source_root)
+    relative_stem = relative.with_suffix("")
+    item_id = slugify(relative_stem.as_posix())
+    output_stem = re.sub(
+        r"[^A-Za-z0-9_-]+", "-", relative_stem.as_posix().replace("/", "-")
+    ).strip("-")
+    creator = default_creator
+    if len(relative.parts) > 1:
+        creator = re.sub(r"[_-]+", " ", relative.parts[0]).strip().title()
+    return item_id, output_stem, creator, relative
 
 
 def iso_utc(value: dt.datetime | None) -> str | None:
@@ -164,7 +183,7 @@ def parse_video(path: Path) -> dict:
     if abs(rotation) % 180 == 90:
         width, height = height, width
     captured = parse_datetime(
-        tags.get("creation_time") or tags.get("com.apple.quicktime.creationdate")
+        tags.get("com.apple.quicktime.creationdate") or tags.get("creation_time")
     )
     return {
         "captured": captured,
@@ -298,6 +317,7 @@ def inventory_item(
     course_total_mi: float,
     activity_total_m: float,
     override: dict | None,
+    default_creator: str | None,
 ) -> dict:
     extension = path.suffix.lower()
     media_type = "video" if extension in SUPPORTED_VIDEOS else "photo"
@@ -322,7 +342,9 @@ def inventory_item(
         candidate = select_route_candidate(
             route_candidates(course_points, lat, lon), expected_mile
         )
-    item_id = path.stem.lower().replace("_", "-")
+    item_id, output_stem, creator, relative_path = media_identity(
+        path, source_root, default_creator
+    )
     route_mile = candidate["mile"] if candidate else None
     region = region_for_mile(route_mile) if route_mile is not None else "Homedred Miler"
     title = override.get("title") if override else None
@@ -337,13 +359,13 @@ def inventory_item(
         )
     outputs = (
         {
-            "src": f"assets/media/{path.stem}.mp4",
-            "thumbnailSrc": f"assets/media/{path.stem}-poster.jpg",
+            "src": f"assets/media/{output_stem}.mp4",
+            "thumbnailSrc": f"assets/media/{output_stem}-poster.jpg",
         }
         if media_type == "video"
         else {
-            "src": f"assets/media/{path.stem}-full.jpg",
-            "thumbnailSrc": f"assets/media/{path.stem}.jpg",
+            "src": f"assets/media/{output_stem}-full.jpg",
+            "thumbnailSrc": f"assets/media/{output_stem}.jpg",
         }
     )
     if media_type == "video":
@@ -387,8 +409,9 @@ def inventory_item(
         note = "Could not assign a route location automatically."
     return {
         "id": item_id,
-        "sourcePath": str(path.relative_to(source_root)),
+        "sourcePath": str(relative_path),
         "sourceHash": sha256(path),
+        "creator": creator,
         "type": media_type,
         "capturedAt": iso_utc(captured),
         "timestampSource": "quicktime" if media_type == "video" else "spotlight",
@@ -526,8 +549,14 @@ def main() -> None:
     parser.add_argument("--assets", type=Path, default=Path("app/src/assets/media"))
     parser.add_argument("--process", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--append", action="store_true")
+    parser.add_argument("--refresh-matching", action="store_true")
+    parser.add_argument("--default-creator")
+    parser.add_argument("--existing-creator")
     parser.add_argument("--jobs", type=int, default=4)
     args = parser.parse_args()
+    if args.refresh_matching and not args.append:
+        parser.error("--refresh-matching requires --append")
 
     source_root = args.source.resolve()
     files = sorted(
@@ -535,6 +564,13 @@ def main() -> None:
         for path in source_root.rglob("*")
         if path.is_file() and path.suffix.lower() in SUPPORTED_PHOTOS | SUPPORTED_VIDEOS
     )
+    existing_items = []
+    if args.append and args.manifest.exists():
+        existing_items = json.loads(args.manifest.read_text())
+        if args.existing_creator:
+            for item in existing_items:
+                if not item.get("creator"):
+                    item["creator"] = args.existing_creator
     overrides = json.loads(args.overrides.read_text()) if args.overrides.exists() else {}
     activity_records, activity_hash = load_activity(args.fit)
     activity_distances = [
@@ -544,7 +580,7 @@ def main() -> None:
     course = json.loads(args.course.read_text())
 
     def inspect(path: Path) -> dict:
-        item_id = path.stem.lower().replace("_", "-")
+        item_id, _, _, _ = media_identity(path, source_root, args.default_creator)
         return inventory_item(
             path,
             source_root,
@@ -555,25 +591,65 @@ def main() -> None:
             course["totalMi"],
             activity_total_m,
             overrides.get(item_id),
+            args.default_creator,
         )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:
         items = list(executor.map(inspect, files))
     items.sort(key=lambda item: (item["capturedAt"] or "", item["sourcePath"]))
 
-    seen_hashes = {}
+    seen_hashes = {
+        item["sourceHash"]: item["id"]
+        for item in existing_items
+        if item.get("sourceHash") and item.get("id")
+    }
+    existing_by_hash = {
+        item["sourceHash"]: index
+        for index, item in enumerate(existing_items)
+        if item.get("sourceHash")
+    }
+    seen_ids = {item["id"] for item in existing_items if item.get("id")}
+    append_items = []
+    refreshed = 0
     for item in items:
+        existing_index = existing_by_hash.get(item["sourceHash"])
+        if args.refresh_matching and existing_index is not None:
+            existing = existing_items[existing_index]
+            item["id"] = existing["id"]
+            item["outputs"] = existing.get("outputs", item["outputs"])
+            if not item.get("creator"):
+                item["creator"] = existing.get("creator")
+            existing_items[existing_index] = item
+            refreshed += 1
+            continue
+        base_id = item["id"]
+        if item["id"] in seen_ids:
+            suffix = slugify(item.get("creator") or source_root.name) or "new"
+            item["id"] = f"{base_id}-{suffix}"
+            counter = 2
+            while item["id"] in seen_ids:
+                item["id"] = f"{base_id}-{suffix}-{counter}"
+                counter += 1
+        seen_ids.add(item["id"])
         if item["sourceHash"] in seen_hashes:
             item["status"] = "duplicate"
             item["notes"] = f"Exact duplicate of {seen_hashes[item['sourceHash']]}."
         else:
             seen_hashes[item["sourceHash"]] = item["id"]
+        append_items.append(item)
 
-    args.manifest.write_text(json.dumps(items, indent=2) + "\n")
+    manifest_items = existing_items + append_items if args.append else append_items
+    manifest_items.sort(key=lambda item: (item["capturedAt"] or "", item["sourcePath"]))
+    args.manifest.write_text(json.dumps(manifest_items, indent=2) + "\n")
     counts = {}
     for item in items:
         counts[item["status"]] = counts.get(item["status"], 0) + 1
     print(f"inventory={len(items)} counts={counts}")
+    if args.append:
+        print(
+            f"manifest={len(manifest_items)} existing={len(existing_items)} "
+            f"refreshed={refreshed} appended={len(append_items)}"
+        )
     print(
         f"activity={activity_records[0][0].isoformat()}..{activity_records[-1][0].isoformat()} "
         f"distance={activity_total_m / M_PER_MI:.2f}mi"
@@ -582,7 +658,7 @@ def main() -> None:
     if not args.process:
         return
     args.assets.mkdir(parents=True, exist_ok=True)
-    resolved = [item for item in items if item["status"] == "resolved"]
+    resolved = [item for item in append_items if item["status"] == "resolved"]
 
     def convert(item: dict) -> str:
         source = source_root / item["sourcePath"]
