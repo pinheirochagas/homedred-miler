@@ -1,6 +1,6 @@
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import './style.css?v=20260811-metric-control-pop'
+import './style.css?v=20260812-race-report'
 import {
   course, ptAt, fmtFt, fmtMi,
 } from './data.js'
@@ -41,6 +41,11 @@ import {
 import { waypoints as plannedWaypoints } from './waypoints.js?v=actual-activity-20260810'
 import { facilities } from './facilities.js'
 import { mediaItems } from './media.js?v=20260810-actual-activity-4'
+import {
+  raceReportAnchors,
+  raceReportChapters,
+  raceReportMeta,
+} from './race-report.js?v=20260812'
 import { crewPlan } from './crew-plan.js?v=20260810-actual-record-6'
 import { sunTimes, hhmm } from './sun.js'
 import waterFacilityIcon from './assets/facilities/facility-water.png'
@@ -69,6 +74,14 @@ let selectedMediaId = null
 let repositionMediaPopup = () => {}
 const mediaWidths = new Map()
 const visibleFacilityTypes = new Set()
+let railView = 'activity'
+let activeReportChapterId = null
+let reportSelection = null
+let reportMediaRange = null
+let reportRendered = false
+let reportScrollFrame = null
+let reportScrollTargetId = null
+let reportScrollTargetTimer = null
 let atmosphereMode = null
 const atmosphereArchives = new Map()
 let atmosphereFrames = []
@@ -190,6 +203,7 @@ const routeMedia = mediaItems.map(item => {
   }
 })
 const mediaById = new Map(routeMedia.map(item => [item.id, item]))
+const reportChapterById = new Map(raceReportChapters.map(chapter => [chapter.id, chapter]))
 const mediaImageKey = id => `media-${id}`
 
 function nearestCourseLocation(position) {
@@ -350,7 +364,6 @@ const ATMOSPHERE_SOURCE_IDS = ['atmosphere-frame-a', 'atmosphere-frame-b']
 const ATMOSPHERE_LAYER_IDS = ['atmosphere-frame-a', 'atmosphere-frame-b']
 const WIND_SOURCE_ID = 'atmosphere-wind-vectors'
 const WIND_LAYER_ID = 'atmosphere-wind-arrows'
-const WIND_ARROW_IMAGE_ID = 'atmosphere-wind-arrow'
 const ATMOSPHERE_UI = {
   fog: {
     button: '#ctl-fog',
@@ -455,69 +468,43 @@ function windVectorGeojson() {
   }
 }
 
-function addWindArrowImage() {
-  if (map.hasImage(WIND_ARROW_IMAGE_ID)) return
-  const canvas = document.createElement('canvas')
-  canvas.width = 64
-  canvas.height = 64
-  const context = canvas.getContext('2d')
-  context.fillStyle = '#ffffff'
-  context.beginPath()
-  context.moveTo(32, 4)
-  context.lineTo(17, 23)
-  context.lineTo(27, 20)
-  context.lineTo(27, 58)
-  context.quadraticCurveTo(27, 61, 30, 61)
-  context.lineTo(34, 61)
-  context.quadraticCurveTo(37, 61, 37, 58)
-  context.lineTo(37, 20)
-  context.lineTo(47, 23)
-  context.closePath()
-  context.fill()
-  map.addImage(
-    WIND_ARROW_IMAGE_ID,
-    context.getImageData(0, 0, canvas.width, canvas.height),
-    { sdf: true, pixelRatio: 2 },
-  )
-}
-
 function addAtmosphereWindLayer(firstLabel) {
   const archive = atmosphereArchives.get('wind')
   if (!archive || map.getSource(WIND_SOURCE_ID)) return
-  addWindArrowImage()
   map.addSource(WIND_SOURCE_ID, { type: 'geojson', data: windVectorGeojson() })
   map.addLayer({
     id: WIND_LAYER_ID,
     type: 'symbol',
     source: WIND_SOURCE_ID,
     layout: {
-      'icon-image': WIND_ARROW_IMAGE_ID,
-      'icon-size': [
+      'text-field': '↑',
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-size': [
         'interpolate', ['linear'], ['get', 'speedMph'],
-        0, 0.48,
-        5, 0.66,
-        15, 0.9,
-        30, 1.12,
+        0, 16,
+        5, 21,
+        15, 29,
+        30, 36,
       ],
-      'icon-rotate': ['get', 'bearing'],
-      'icon-rotation-alignment': 'map',
-      'icon-pitch-alignment': 'map',
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
-      'icon-keep-upright': false,
+      'text-rotate': ['get', 'bearing'],
+      'text-rotation-alignment': 'map',
+      'text-pitch-alignment': 'map',
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+      'text-keep-upright': false,
     },
     paint: {
-      'icon-color': [
+      'text-color': [
         'interpolate', ['linear'], ['get', 'speedMph'],
         0, '#512271',
         8, '#425491',
         18, '#287f96',
         34, '#169d91',
       ],
-      'icon-opacity': atmosphereMode === 'wind' ? archive.opacity : 0,
-      'icon-halo-color': 'rgba(255, 255, 255, 0.9)',
-      'icon-halo-width': 0.85,
-      'icon-emissive-strength': 1,
+      'text-opacity': atmosphereMode === 'wind' ? archive.opacity : 0,
+      'text-halo-color': 'rgba(255, 255, 255, 0.92)',
+      'text-halo-width': 0.65,
+      'text-emissive-strength': 1,
     },
   }, firstLabel)
 }
@@ -551,7 +538,7 @@ function syncAtmosphereLayerVisibility() {
     )
     map.setPaintProperty(
       WIND_LAYER_ID,
-      'icon-opacity',
+      'text-opacity',
       atmosphereMode === 'wind' ? Math.min(1, opacity + 0.08) : 0,
     )
     if (atmosphereMode === 'wind') {
@@ -1253,41 +1240,48 @@ function updateFacilitySource() {
   map?.getSource('facilities')?.setData(facilityGeojson())
 }
 
+function visibleRouteMedia() {
+  if (!mediaVisible) return []
+  if (railView !== 'report') return routeMedia
+  if (!reportMediaRange) return []
+  const { fromMi, toMi } = reportMediaRange
+  return routeMedia.filter(item => item.mi >= fromMi && item.mi <= toMi)
+}
+
 function mediaGeojson() {
   return {
     type: 'FeatureCollection',
-    features: mediaVisible
-      ? routeMedia.map(item => ({
-          type: 'Feature',
-          id: item.id,
-          properties: { id: item.id, icon: mediaImageKey(item.id) },
-          geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
-        }))
-      : [],
+    features: visibleRouteMedia().map(item => ({
+      type: 'Feature',
+      id: item.id,
+      properties: { id: item.id, icon: mediaImageKey(item.id) },
+      geometry: { type: 'Point', coordinates: [item.lon, item.lat] },
+    })),
   }
 }
 
 function mediaConnectorGeojson() {
   return {
     type: 'FeatureCollection',
-    features: mediaVisible
-      ? routeMedia
-          .filter(item => item.offsetM > 8)
-          .map(item => ({
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: [[item.routeLon, item.routeLat], [item.lon, item.lat]],
-            },
-          }))
-      : [],
+    features: visibleRouteMedia()
+      .filter(item => item.offsetM > 8)
+      .map(item => ({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [[item.routeLon, item.routeLat], [item.lon, item.lat]],
+        },
+      })),
   }
 }
 
 function mediaBadge(image, type) {
-  const width = 92
-  const height = 112
+  const width = 84
+  const height = 98
+  const centerX = width / 2
+  const centerY = 40
+  const imageRadius = 31
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -1295,8 +1289,8 @@ function mediaBadge(image, type) {
 
   ctx.lineCap = 'round'
   ctx.beginPath()
-  ctx.moveTo(width / 2, 92)
-  ctx.lineTo(width / 2, 108)
+  ctx.moveTo(centerX, 70)
+  ctx.lineTo(centerX, 94)
   ctx.strokeStyle = '#ffffff'
   ctx.lineWidth = 8
   ctx.stroke()
@@ -1305,28 +1299,25 @@ function mediaBadge(image, type) {
   ctx.stroke()
 
   ctx.beginPath()
-  ctx.roundRect(6, 6, 80, 92, 4)
+  ctx.arc(centerX, centerY, 36, 0, Math.PI * 2)
   ctx.fillStyle = '#ffffff'
   ctx.fill()
   ctx.strokeStyle = '#000000'
   ctx.lineWidth = 2
   ctx.stroke()
 
-  const x = 12
-  const y = 12
-  const w = 68
-  const h = 80
   ctx.save()
   ctx.beginPath()
-  ctx.roundRect(x, y, w, h, 2)
+  ctx.arc(centerX, centerY, imageRadius, 0, Math.PI * 2)
   ctx.clip()
-  const scale = Math.max(w / image.width, h / image.height)
+  const diameter = imageRadius * 2
+  const scale = Math.max(diameter / image.width, diameter / image.height)
   const imageWidth = image.width * scale
   const imageHeight = image.height * scale
   ctx.drawImage(
     image,
-    x + (w - imageWidth) / 2,
-    y + (h - imageHeight) / 2,
+    centerX - imageWidth / 2,
+    centerY - imageHeight / 2,
     imageWidth,
     imageHeight,
   )
@@ -1334,33 +1325,33 @@ function mediaBadge(image, type) {
 
   if (type === 'video') {
     ctx.beginPath()
-    ctx.arc(width / 2, 52, 14, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.arc(centerX, centerY, 13, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
     ctx.fill()
     ctx.strokeStyle = '#000000'
     ctx.lineWidth = 2
     ctx.stroke()
     ctx.beginPath()
-    ctx.moveTo(width / 2 - 4, 44)
-    ctx.lineTo(width / 2 + 7, 52)
-    ctx.lineTo(width / 2 - 4, 60)
+    ctx.moveTo(centerX - 3.5, centerY - 6)
+    ctx.lineTo(centerX + 6, centerY)
+    ctx.lineTo(centerX - 3.5, centerY + 6)
     ctx.closePath()
     ctx.fillStyle = '#000000'
     ctx.fill()
   } else if (type === 'audio') {
     ctx.beginPath()
-    ctx.arc(width / 2, 52, 14, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.arc(centerX, centerY, 13, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
     ctx.fill()
     ctx.strokeStyle = '#000000'
     ctx.lineWidth = 2
     ctx.stroke()
     ctx.strokeStyle = '#000000'
-    ctx.lineWidth = 2.5
-    for (const [dx, halfHeight] of [[-6, 4], [-2, 8], [2, 6], [6, 3]]) {
+    ctx.lineWidth = 2
+    for (const [dx, halfHeight] of [[-6, 3], [-2, 6], [2, 4.5], [6, 2]]) {
       ctx.beginPath()
-      ctx.moveTo(width / 2 + dx, 52 - halfHeight)
-      ctx.lineTo(width / 2 + dx, 52 + halfHeight)
+      ctx.moveTo(centerX + dx, centerY - halfHeight)
+      ctx.lineTo(centerX + dx, centerY + halfHeight)
       ctx.stroke()
     }
   }
@@ -1404,7 +1395,7 @@ async function addMediaLayers() {
     source: 'media',
     layout: {
       'icon-image': ['get', 'icon'],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.68, 11, 0.82, 13, 1],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.72, 11, 0.86, 13, 1],
       'icon-anchor': 'bottom',
       'icon-offset': [0, -2],
       'icon-allow-overlap': true,
@@ -1432,6 +1423,16 @@ async function addMediaLayers() {
 function updateMediaSources() {
   map?.getSource('media')?.setData(mediaGeojson())
   map?.getSource('media-connectors')?.setData(mediaConnectorGeojson())
+}
+
+function setMediaVisibility(visible) {
+  mediaVisible = Boolean(visible)
+  const button = $('#ctl-media')
+  button.classList.toggle('on', mediaVisible)
+  button.setAttribute('aria-pressed', String(mediaVisible))
+  if (!mediaVisible) mediaPopup?.remove()
+  updateMediaSources()
+  renderProfile()
 }
 
 const mediaTimestamp = value => new Intl.DateTimeFormat('en-US', {
@@ -1834,6 +1835,367 @@ function focusMedia(id, fly = false, overlappingIds = []) {
   }
 }
 
+const reportClock = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles',
+  weekday: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+})
+
+function reportRouteRange(chapter) {
+  if (!Number.isFinite(chapter?.fromMi) || !Number.isFinite(chapter?.toMi)) return null
+  return {
+    a: Math.max(0, chapter.fromMi),
+    b: Math.min(activityTotalMi, chapter.toMi),
+  }
+}
+
+function reportChapterMediaRange(chapter) {
+  const routeRange = reportRouteRange(chapter)
+  const fromMi = Number.isFinite(chapter?.mediaFromMi)
+    ? chapter.mediaFromMi
+    : routeRange?.a
+  const toMi = Number.isFinite(chapter?.mediaToMi)
+    ? chapter.mediaToMi
+    : routeRange?.b
+  if (!Number.isFinite(fromMi) || !Number.isFinite(toMi)) return null
+  return {
+    fromMi: Math.max(0, fromMi),
+    toMi: Math.min(activityTotalMi, toMi),
+  }
+}
+
+function reportMediaForChapter(chapter) {
+  const range = reportChapterMediaRange(chapter)
+  if (!range) return []
+  return routeMedia.filter(item => item.mi >= range.fromMi && item.mi <= range.toMi)
+}
+
+function representativeReportMedia(items, maximum = 9) {
+  if (items.length <= maximum) return items
+  const sampled = []
+  for (let index = 0; index < maximum; index += 1) {
+    const itemIndex = Math.round(index * (items.length - 1) / (maximum - 1))
+    if (!sampled.includes(items[itemIndex])) sampled.push(items[itemIndex])
+  }
+  return sampled
+}
+
+function reportElement(tagName, className, text = '') {
+  const element = document.createElement(tagName)
+  if (className) element.className = className
+  if (text) element.textContent = text
+  return element
+}
+
+function reportChapterDetails(chapter) {
+  const range = reportRouteRange(chapter)
+  if (!range) return chapter.context
+  const stats = activityStatsBetween(range.a, range.b)
+  return [
+    `${fmtMi(range.a)}–${fmtMi(range.b)} mi`,
+    `${reportClock.format(stats.startAt)}–${reportClock.format(stats.finishAt)}`,
+    `${activityDuration(stats.elapsedS)} elapsed`,
+  ].join(' · ')
+}
+
+function renderReportMedia(chapter) {
+  const items = reportMediaForChapter(chapter)
+  if (!items.length) return null
+
+  const media = reportElement('div', 'report-media')
+  const summary = reportElement('div', 'report-media-summary')
+  const count = reportElement(
+    'span',
+    '',
+    `${items.length} ${items.length === 1 ? 'moment' : 'moments'} along this passage`,
+  )
+  const creators = [...new Set(items.map(item => item.creator).filter(Boolean))]
+  const byline = reportElement('small', '', creators.join(' · '))
+  summary.append(count, byline)
+
+  const strip = reportElement('div', 'report-filmstrip')
+  representativeReportMedia(items).forEach(item => {
+    const button = reportElement('button', 'report-media-item')
+    button.type = 'button'
+    button.setAttribute(
+      'aria-label',
+      `Open ${item.type} at actual mile ${fmtMi(item.mi)}${item.creator ? ` by ${item.creator}` : ''}`,
+    )
+
+    const image = document.createElement('img')
+    image.src = item.thumbnailSrc || item.src
+    image.alt = ''
+    image.loading = 'lazy'
+    image.decoding = 'async'
+
+    const caption = reportElement('span', 'report-media-caption')
+    caption.append(
+      reportElement('b', '', `mi ${fmtMi(item.mi)}`),
+      reportElement('small', '', item.creator || item.type),
+    )
+    button.append(image)
+    if (item.type === 'video') {
+      const play = reportElement('i', 'report-media-play', '▶')
+      play.setAttribute('aria-hidden', 'true')
+      button.append(play)
+    }
+    button.append(caption)
+    button.addEventListener('click', () => {
+      if (!mediaVisible) setMediaVisibility(true)
+      focusMedia(item.id, true)
+    })
+    strip.appendChild(button)
+  })
+
+  media.append(summary, strip)
+  return media
+}
+
+function clearReportScrollTarget() {
+  reportScrollTargetId = null
+  if (reportScrollTargetTimer != null) {
+    clearTimeout(reportScrollTargetTimer)
+    reportScrollTargetTimer = null
+  }
+}
+
+function scrollToReportChapter(id) {
+  const section = $(`#report-${id}`)
+  if (!section) return
+  const behavior = matchMedia('(prefers-reduced-motion: reduce)').matches
+    ? 'auto'
+    : 'smooth'
+  clearReportScrollTarget()
+  reportScrollTargetId = id
+  section.scrollIntoView({ behavior, block: 'start' })
+  activateReportChapter(id)
+  reportScrollTargetTimer = setTimeout(() => {
+    if (reportScrollTargetId !== id) return
+    clearReportScrollTarget()
+    scheduleReportScrollSync()
+  }, behavior === 'smooth' ? 1200 : 0)
+}
+
+function stepReportChapter(direction) {
+  const currentIndex = Math.max(
+    0,
+    raceReportChapters.findIndex(chapter => chapter.id === activeReportChapterId),
+  )
+  const nextIndex = Math.max(
+    0,
+    Math.min(raceReportChapters.length - 1, currentIndex + direction),
+  )
+  scrollToReportChapter(raceReportChapters[nextIndex].id)
+}
+
+function renderRaceReport() {
+  if (reportRendered) return
+  reportRendered = true
+
+  const lede = $('#report-lede')
+  const filmLink = reportElement('a', 'report-film-link', `${raceReportMeta.filmLabel} ↗`)
+  filmLink.href = raceReportMeta.filmUrl
+  filmLink.target = '_blank'
+  filmLink.rel = 'noreferrer'
+  lede.append(
+    reportElement('span', 'report-eyebrow', raceReportMeta.eyebrow),
+    reportElement('p', 'report-introduction', raceReportMeta.introduction),
+    filmLink,
+  )
+
+  const nav = $('#report-nav')
+  const previous = reportElement('button', 'report-step report-previous', '←')
+  previous.type = 'button'
+  previous.setAttribute('aria-label', 'Previous report section')
+  previous.addEventListener('click', () => stepReportChapter(-1))
+  nav.appendChild(previous)
+
+  raceReportAnchors.forEach(anchor => {
+    const button = reportElement('button', 'report-anchor', anchor.label)
+    button.type = 'button'
+    button.dataset.reportTarget = anchor.id
+    button.addEventListener('click', () => scrollToReportChapter(anchor.id))
+    nav.appendChild(button)
+  })
+
+  const next = reportElement('button', 'report-step report-next', '→')
+  next.type = 'button'
+  next.setAttribute('aria-label', 'Next report section')
+  next.addEventListener('click', () => stepReportChapter(1))
+  nav.appendChild(next)
+
+  const body = $('#report-body')
+  raceReportChapters.forEach(chapter => {
+    const section = reportElement('section', 'report-chapter')
+    section.id = `report-${chapter.id}`
+    section.dataset.reportChapter = chapter.id
+
+    const header = reportElement('header', 'report-chapter-head')
+    const heading = reportElement('div', 'report-chapter-heading')
+    heading.append(
+      reportElement('span', 'report-phase', chapter.phase),
+      reportElement('h3', '', chapter.title),
+    )
+    header.append(
+      heading,
+      reportElement('p', 'report-chapter-context', reportChapterDetails(chapter)),
+    )
+
+    const range = reportRouteRange(chapter)
+    if (range) {
+      const mapButton = reportElement(
+        'button',
+        'report-map-range',
+        `show mi ${fmtMi(range.a)}–${fmtMi(range.b)}`,
+      )
+      mapButton.type = 'button'
+      mapButton.addEventListener('click', () => activateReportChapter(chapter.id, { fit: true }))
+      header.appendChild(mapButton)
+    }
+
+    const copy = reportElement('div', 'report-copy')
+    chapter.paragraphs.forEach(paragraph => {
+      copy.appendChild(reportElement('p', '', paragraph))
+    })
+    section.append(header, copy)
+
+    const media = renderReportMedia(chapter)
+    if (media) section.appendChild(media)
+    body.appendChild(section)
+  })
+
+  const scroller = $('#report-scroll')
+  scroller.addEventListener('scroll', scheduleReportScrollSync, { passive: true })
+  scroller.addEventListener('wheel', clearReportScrollTarget, { passive: true })
+  scroller.addEventListener('touchstart', clearReportScrollTarget, { passive: true })
+  scroller.addEventListener('pointerdown', clearReportScrollTarget, { passive: true })
+  window.addEventListener('scroll', scheduleReportScrollSync, { passive: true })
+  window.addEventListener('resize', scheduleReportScrollSync)
+}
+
+function fitReportChapter(chapter) {
+  const range = reportRouteRange(chapter)
+  if (!range || !map) return
+  const feature = activitySliceFeature(range.a, range.b)
+  const bounds = new mapboxgl.LngLatBounds()
+  feature.geometry.coordinates.forEach(coordinates => bounds.extend(coordinates))
+  stopOrbit()
+  map.fitBounds(bounds, {
+    padding: fitPad(),
+    duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1100,
+    essential: true,
+  })
+}
+
+function activateReportChapter(id, { fit = false } = {}) {
+  const chapter = reportChapterById.get(id)
+  if (!chapter) return
+  activeReportChapterId = chapter.id
+  reportSelection = reportRouteRange(chapter)
+  reportMediaRange = reportChapterMediaRange(chapter)
+
+  document.querySelectorAll('.report-chapter').forEach(section => {
+    section.classList.toggle('active', section.dataset.reportChapter === chapter.id)
+  })
+
+  const chapterIndex = raceReportChapters.findIndex(candidate => candidate.id === chapter.id)
+  let activeAnchorId = raceReportAnchors[0]?.id
+  raceReportAnchors.forEach(anchor => {
+    const anchorIndex = raceReportChapters.findIndex(candidate => candidate.id === anchor.id)
+    if (anchorIndex <= chapterIndex) activeAnchorId = anchor.id
+  })
+  document.querySelectorAll('#report-nav [data-report-target]').forEach(button => {
+    button.classList.toggle('on', button.dataset.reportTarget === activeAnchorId)
+  })
+  $('.report-previous').disabled = chapterIndex === 0
+  $('.report-next').disabled = chapterIndex === raceReportChapters.length - 1
+
+  const selected = selectedMediaId ? mediaById.get(selectedMediaId) : null
+  if (selected && (
+    !reportMediaRange ||
+    selected.mi < reportMediaRange.fromMi ||
+    selected.mi > reportMediaRange.toMi
+  )) {
+    mediaPopup?.remove()
+  }
+
+  syncSelToMap()
+  updateMediaSources()
+  renderProfile()
+  if (fit) fitReportChapter(chapter)
+}
+
+function reportScrollProgress() {
+  const scroller = $('#report-scroll')
+  if (!scroller) return 0
+  if (!matchMedia('(max-width: 940px)').matches) {
+    const maximum = scroller.scrollHeight - scroller.clientHeight
+    return maximum > 0 ? scroller.scrollTop / maximum : 0
+  }
+  const pageTop = scroller.getBoundingClientRect().top + window.scrollY
+  const maximum = Math.max(1, scroller.offsetHeight - window.innerHeight)
+  return (window.scrollY - pageTop) / maximum
+}
+
+function syncReportScrollPosition() {
+  reportScrollFrame = null
+  if (railView !== 'report') return
+  const scroller = $('#report-scroll')
+  const sections = [...document.querySelectorAll('.report-chapter')]
+  if (!scroller || !sections.length) return
+
+  const stacked = matchMedia('(max-width: 940px)').matches
+  const anchorY = stacked
+    ? Math.min(170, window.innerHeight * 0.24)
+    : scroller.getBoundingClientRect().top + Math.min(170, scroller.clientHeight * 0.28)
+  let activeSection = sections[0]
+  for (const section of sections) {
+    if (section.getBoundingClientRect().top <= anchorY) activeSection = section
+    else break
+  }
+  const visibleChapterId = activeSection.dataset.reportChapter
+  if (reportScrollTargetId === visibleChapterId) {
+    clearReportScrollTarget()
+  } else if (!reportScrollTargetId && visibleChapterId !== activeReportChapterId) {
+    activateReportChapter(activeSection.dataset.reportChapter)
+  }
+
+  const progress = Math.max(0, Math.min(1, reportScrollProgress()))
+  $('#report-progress i').style.transform = `scaleX(${progress})`
+}
+
+function scheduleReportScrollSync() {
+  if (reportScrollFrame != null) return
+  reportScrollFrame = requestAnimationFrame(syncReportScrollPosition)
+}
+
+function setRailView(view) {
+  if (!['activity', 'report'].includes(view)) return
+  railView = view
+  if (view === 'report') renderRaceReport()
+
+  $('#activity-index').hidden = view !== 'activity'
+  $('#race-report').hidden = view !== 'report'
+  document.body.classList.toggle('report-view', view === 'report')
+  document.querySelectorAll('#rail-views button').forEach(button => {
+    const on = button.dataset.railView === view
+    button.classList.toggle('on', on)
+    button.setAttribute('aria-pressed', String(on))
+  })
+
+  if (view === 'report') {
+    activateReportChapter(activeReportChapterId || raceReportChapters[0]?.id)
+    requestAnimationFrame(syncReportScrollPosition)
+  } else {
+    reportSelection = null
+    reportMediaRange = null
+    syncSelToMap()
+    updateMediaSources()
+    renderProfile()
+  }
+}
+
 function focusFacility(id, visitId = null, fly = false) {
   const facility = facilityById.get(id)
   if (!facility || !map) return
@@ -1879,11 +2241,11 @@ function setGhost(mi) {
   })
 }
 
-// masthead sits over the map top-left; on the stacked mobile layout it spans the top
+// Keep route framing clear of map controls and the optional atmosphere player.
 const fitPad = () =>
   matchMedia('(max-width: 940px)').matches
-    ? { top: 205, bottom: atmosphereMode ? 120 : 30, left: 24, right: 24 }
-    : { top: 60, bottom: atmosphereMode ? 125 : 70, left: 240, right: 70 }
+    ? { top: 30, bottom: atmosphereMode ? 120 : 30, left: 30, right: 30 }
+    : { top: 55, bottom: atmosphereMode ? 125 : 70, left: 70, right: 70 }
 
 let popup = null
 let mediaPopup = null
@@ -2049,15 +2411,10 @@ $('#ctl-3d').addEventListener('click', () => {
 })
 $('#ctl-orbit').addEventListener('click', () => (orbiting ? stopOrbit() : startOrbit()))
 $('#ctl-location').addEventListener('click', captureUserLocation)
-$('#ctl-media').addEventListener('click', () => {
-  mediaVisible = !mediaVisible
-  const button = $('#ctl-media')
-  button.classList.toggle('on', mediaVisible)
-  button.setAttribute('aria-pressed', String(mediaVisible))
-  if (!mediaVisible) mediaPopup?.remove()
-  updateMediaSources()
-  renderProfile()
+document.querySelectorAll('#rail-views button').forEach(button => {
+  button.addEventListener('click', () => setRailView(button.dataset.railView))
 })
+$('#ctl-media').addEventListener('click', () => setMediaVisibility(!mediaVisible))
 for (const mode of Object.keys(ATMOSPHERE_UI)) {
   $(ATMOSPHERE_UI[mode].button).addEventListener('click', () => {
     setAtmosphereMode(atmosphereMode === mode ? null : mode)
@@ -2465,6 +2822,7 @@ function segmentTotals(segments = selectedCrewSegments()) {
 }
 
 function selectionRanges() {
+  if (reportSelection) return [reportSelection]
   const segments = selectedCrewSegments()
   if (segments.length) return segments.map(({ from, to }) => ({ a: from.mi, b: to.mi }))
   if (!sel) return []

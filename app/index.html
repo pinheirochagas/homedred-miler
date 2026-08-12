@@ -19,17 +19,6 @@
   <main id="plate">
     <div id="map"></div>
 
-    <header id="masthead">
-      <h1>Homedred<br />Miler</h1>
-      <p class="route">Home
-        <svg class="loop" viewBox="0 0 24 24" width="13" height="13" aria-label="out and back">
-          <path d="M23 4v6h-6M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
-            fill="none" stroke="currentColor" stroke-width="1.6"
-            stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        Headlands</p>
-    </header>
-
     <nav id="mapctl" aria-label="Map controls">
       <button id="ctl-style">satellite</button>
       <button id="ctl-3d" aria-pressed="false">relief</button>
@@ -78,47 +67,93 @@
   </main>
 
   <aside id="rail">
-    <section id="motivation" aria-label="Run motivation">
-      <p><span class="motivation-lead">FEW</span> places in the world can accommodate my wildest ideas. This adventure is a celebration of this city and the gentle mountains that surround us. It's also an opportunity to <strong class="ego">dissolve my ego</strong> as I prepare for parenthood and to introduce my future child to my favorite trails, all with the support and company of my incredible community.</p>
-    </section>
+    <nav id="rail-views" aria-label="Information view">
+      <button class="on" data-rail-view="activity" aria-pressed="true">activity</button>
+      <button data-rail-view="report" aria-pressed="false">race report</button>
+    </nav>
 
-    <section id="actual-summary" aria-label="Recorded totals and conditions">
-      <span id="actual-date"></span>
-      <div class="actual-summary-grid">
-        <span><b id="actual-distance"></b><small>miles</small></span>
-        <span><b id="actual-elapsed"></b><small>elapsed</small></span>
-        <span><b id="actual-moving"></b><small>moving</small></span>
-        <span><b id="actual-start"></b><small>started</small></span>
-        <span><b id="actual-finish"></b><small>finished</small></span>
-        <span><b id="actual-gain"></b><small>elevation</small></span>
-        <span><b id="actual-pace"></b><small>average pace</small></span>
-        <span><b id="actual-effort"></b><small>relative effort</small></span>
-        <span><b id="actual-calories"></b><small>calories</small></span>
-        <span><b id="actual-condition"></b><small>conditions</small></span>
-        <span><b id="actual-temperature"></b><small>temperature</small></span>
-        <span><b id="actual-humidity"></b><small>humidity</small></span>
-        <span><b id="actual-feels"></b><small>feels like</small></span>
-        <span><b id="actual-wind"></b><small>wind speed</small></span>
-        <span><b id="actual-wind-direction"></b><small>wind direction</small></span>
+    <div id="activity-index">
+      <header id="activity-masthead">
+        <h1>Homedred<br />Miler</h1>
+        <p class="route">Home
+          <svg class="loop" viewBox="0 0 24 24" width="13" height="13" aria-label="out and back">
+            <path d="M23 4v6h-6M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
+              fill="none" stroke="currentColor" stroke-width="1.6"
+              stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Headlands</p>
+        <div class="visualization-guide" aria-label="Visualization instructions">
+          <p><b>Map</b>Select a media marker or route stop for details. Use the left controls for framing, relief, and weather.</p>
+          <p><b>Elevation</b>Hover for mile, time, and elevation. Drag to highlight the same section on the map; select a metric to compare it.</p>
+        </div>
+      </header>
+
+      <section id="motivation" aria-label="Run motivation">
+        <p><span class="motivation-lead">FEW</span> places in the world can accommodate my wildest ideas. This adventure is a celebration of this city and the gentle mountains that surround us. It's also an opportunity to <strong class="ego">dissolve my ego</strong> as I prepare for parenthood and to introduce my future child to my favorite trails, all with the support and company of my incredible community.</p>
+      </section>
+
+      <section id="actual-summary" aria-label="Recorded totals and conditions">
+        <div class="actual-summary-head">
+          <a
+            class="strava-link"
+            href="https://www.strava.com/activities/19672723905"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9.7 1.5 3.8 12.6h3.6l2.3-4.4 2.4 4.4h3.6L9.7 1.5Z" />
+              <path d="m14.2 12.6 2.2 4.1 2.1-4.1h3.3l-5.4 9.9-5.3-9.9h3.1Z" />
+            </svg>
+            <span>Strava activity</span>
+            <i aria-hidden="true">↗</i>
+          </a>
+          <span id="actual-date"></span>
+        </div>
+        <div class="actual-summary-grid">
+          <span><b id="actual-distance"></b><small>miles</small></span>
+          <span><b id="actual-elapsed"></b><small>elapsed</small></span>
+          <span><b id="actual-moving"></b><small>moving</small></span>
+          <span><b id="actual-start"></b><small>started</small></span>
+          <span><b id="actual-finish"></b><small>finished</small></span>
+          <span><b id="actual-gain"></b><small>elevation</small></span>
+          <span><b id="actual-pace"></b><small>average pace</small></span>
+          <span><b id="actual-effort"></b><small>relative effort</small></span>
+          <span><b id="actual-calories"></b><small>calories</small></span>
+          <span><b id="actual-condition"></b><small>conditions</small></span>
+          <span><b id="actual-temperature"></b><small>temperature</small></span>
+          <span><b id="actual-humidity"></b><small>humidity</small></span>
+          <span><b id="actual-feels"></b><small>feels like</small></span>
+          <span><b id="actual-wind"></b><small>wind speed</small></span>
+          <span><b id="actual-wind-direction"></b><small>wind direction</small></span>
+        </div>
+      </section>
+
+      <div id="filters">
+        <button data-f="crew">crew record</button>
+        <button data-f="water">water</button>
+        <button data-f="bathrooms">bathrooms</button>
+        <button data-f="parking">parking</button>
+        <button data-f="gated">access</button>
+        <button data-f="segments">splits</button>
       </div>
-    </section>
 
-    <div id="filters">
-      <button data-f="crew">crew record</button>
-      <button data-f="water">water</button>
-      <button data-f="bathrooms">bathrooms</button>
-      <button data-f="parking">parking</button>
-      <button data-f="gated">access</button>
-      <button data-f="segments">splits</button>
+      <div id="segment-summary" hidden aria-live="polite"></div>
+      <ol id="wplist"></ol>
+
+      <footer id="legend">
+        <span>● crew access</span>
+        <span>○ on foot only</span>
+      </footer>
     </div>
 
-    <div id="segment-summary" hidden aria-live="polite"></div>
-    <ol id="wplist"></ol>
-
-    <footer id="legend">
-      <span>● crew access</span>
-      <span>○ on foot only</span>
-    </footer>
+    <section id="race-report" hidden aria-label="Race report">
+      <div id="report-progress" aria-hidden="true"><i></i></div>
+      <div id="report-scroll">
+        <header id="report-lede"></header>
+        <nav id="report-nav" aria-label="Race report sections"></nav>
+        <div id="report-body"></div>
+      </div>
+    </section>
   </aside>
 
   <section id="profile">
@@ -147,6 +182,6 @@
 
   <div id="err" hidden></div>
 
-  <script type="module" src="/src/main.js?v=metric-control-pop-20260811"></script>
+  <script type="module" src="/src/main.js?v=race-report-20260812"></script>
 </body>
 </html>

@@ -65,33 +65,53 @@ button:focus-visible { outline: 1px solid var(--g80); outline-offset: 3px; }
 
 .lbl { font-size: 13px; font-weight: 400; color: var(--black); }
 
-/* ---------- masthead ---------- */
-#masthead {
-  position: absolute; top: 34px; left: 38px; z-index: 10;
-  pointer-events: none;
-  max-width: 420px;
+/* ---------- activity masthead ---------- */
+#activity-masthead {
+  padding: 28px 30px 24px;
+  border-bottom: 1px solid var(--hair);
 }
-#masthead h1 {
-  font-size: 58px;
+#activity-masthead h1 {
+  font-size: 40px;
   font-weight: 100;
-  line-height: 0.96;
+  line-height: 0.9;
   letter-spacing: -0.005em;
   text-transform: uppercase;
 }
-#masthead .route {
-  margin-top: 16px;
-  font-size: 16px;
+#activity-masthead .route {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 13px;
+  font-size: 14px;
   font-weight: 300;
   letter-spacing: 0.01em;
-  display: flex; align-items: center; gap: 9px;
 }
-#masthead .route .loop { width: 13px; height: 13px; margin-top: 1px; }
-#masthead .sub {
-  margin-top: 6px;
-  font-size: 12px;
+#activity-masthead .route .loop {
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+}
+.visualization-guide {
+  display: grid;
+  gap: 7px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--black);
+}
+.visualization-guide p {
+  color: var(--g55);
+  font-size: 10.5px;
   font-weight: 300;
-  line-height: 1.45;
-  color: var(--g80);
+  line-height: 1.48;
+}
+.visualization-guide b {
+  display: inline-block;
+  width: 58px;
+  color: var(--black);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
 /* ---------- map controls ---------- */
@@ -174,10 +194,6 @@ button:focus-visible { outline: 1px solid var(--g80); outline-offset: 3px; }
 }
 
 /* over black-and-white satellite imagery */
-body.satellite #masthead h1,
-body.satellite #masthead .route { color: var(--white); }
-body.satellite #masthead .sub { color: rgba(255, 255, 255, 0.72); }
-body.satellite #masthead { text-shadow: 0 0 24px rgba(0, 0, 0, 0.45); }
 body.satellite #mapctl button { color: rgba(255, 255, 255, 0.82); text-shadow: 0 0 14px rgba(0, 0, 0, 0.55); }
 body.satellite #mapctl button:hover,
 body.satellite #mapctl button.on { color: var(--white); }
@@ -373,6 +389,45 @@ body.atmosphere-on .mapboxgl-ctrl-bottom-right { bottom: 68px; }
   min-height: 0;
 }
 
+#rail-views {
+  display: grid;
+  flex: 0 0 39px;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--rule);
+}
+#rail-views button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  color: var(--g80);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.055em;
+  text-align: center;
+  text-transform: uppercase;
+}
+#rail-views button + button { border-left: 1px solid var(--hair); }
+#rail-views button:hover { color: var(--black); }
+#rail-views button.on {
+  background: var(--black);
+  color: var(--white);
+}
+#rail-views button:focus-visible {
+  z-index: 1;
+  outline: 1px solid var(--black);
+  outline-offset: -4px;
+}
+
+#activity-index {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+#activity-index[hidden],
+#race-report[hidden] { display: none; }
+
 #motivation {
   padding: 30px;
   border-bottom: 1px solid var(--hair);
@@ -403,12 +458,48 @@ body.atmosphere-on .mapboxgl-ctrl-bottom-right { bottom: 68px; }
 }
 
 #actual-summary { padding: 22px 30px 18px; }
+.actual-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.actual-summary-head a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--black);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-decoration: none;
+}
+.actual-summary-head a:hover,
+.actual-summary-head a:focus-visible { color: var(--black); }
+.strava-link svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: #fc4c02;
+}
+.strava-link span {
+  padding-bottom: 2px;
+  border-bottom: 3px solid var(--highlight);
+}
+.strava-link i {
+  color: var(--g55);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 400;
+}
 #actual-date {
   display: block;
   color: var(--g80);
-  font-size: 10.5px;
-  font-weight: 300;
-  text-align: right;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
 }
 .actual-summary-grid {
   display: grid;
@@ -729,6 +820,278 @@ body.atmosphere-on .mapboxgl-ctrl-bottom-right { bottom: 68px; }
   color: var(--g80);
 }
 #legend[hidden] { display: none; }
+
+/* ---------- race report ---------- */
+#race-report {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--white);
+}
+#report-progress {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 8;
+  height: 3px;
+  background: var(--hair);
+  pointer-events: none;
+}
+#report-progress i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--highlight);
+  will-change: transform;
+}
+#report-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+  scrollbar-width: thin;
+}
+#report-lede {
+  padding: 28px 30px 26px;
+  border-bottom: 1px solid var(--rule);
+}
+.report-eyebrow {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--g80);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.report-introduction {
+  max-width: 39ch;
+  color: var(--g55);
+  font-size: 12.5px;
+  line-height: 1.62;
+}
+.report-film-link {
+  display: inline-block;
+  margin-top: 14px;
+  color: var(--black);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.035em;
+  text-decoration: underline;
+  text-decoration-color: var(--highlight);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 2px;
+}
+.report-film-link:hover,
+.report-film-link:focus-visible { color: var(--g55); }
+#report-nav {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: 34px repeat(4, minmax(0, 1fr)) 34px;
+  border-bottom: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+#report-nav button {
+  position: relative;
+  min-width: 0;
+  padding: 12px 5px 11px;
+  overflow: hidden;
+  color: var(--g80);
+  font-size: 8.5px;
+  font-weight: 400;
+  letter-spacing: 0.045em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+#report-nav button:hover,
+#report-nav button.on { color: var(--black); }
+#report-nav button.on::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 3px;
+  background: var(--highlight);
+}
+#report-nav .report-step {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--black);
+  font-size: 16px;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+#report-nav .report-previous { border-right: 1px solid var(--hair); }
+#report-nav .report-next { border-left: 1px solid var(--hair); }
+#report-nav .report-step:hover:not(:disabled) { background: var(--highlight); }
+#report-nav .report-step:disabled {
+  color: var(--gb0);
+  cursor: default;
+}
+.report-chapter {
+  position: relative;
+  padding: 38px 30px 44px;
+  border-bottom: 1px solid var(--hair);
+  scroll-margin-top: 38px;
+}
+.report-chapter::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  transform: scaleY(0);
+  transform-origin: top;
+  background: var(--highlight);
+  transition: transform 220ms ease;
+}
+.report-chapter.active::before { transform: scaleY(1); }
+.report-chapter-head { margin-bottom: 25px; }
+.report-chapter-heading {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 11px;
+  align-items: start;
+}
+.report-phase {
+  padding-top: 6px;
+  color: var(--g80);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.report-chapter h3 {
+  font-size: 28px;
+  font-weight: 100;
+  letter-spacing: -0.02em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+.report-chapter-context {
+  margin: 11px 0 0 59px;
+  color: var(--g80);
+  font-size: 9.5px;
+  font-weight: 300;
+  letter-spacing: 0.025em;
+  line-height: 1.45;
+}
+.report-map-range {
+  margin: 11px 0 0 59px;
+  color: var(--g55);
+  font-size: 9.5px;
+  font-weight: 400;
+  text-decoration: underline;
+  text-decoration-color: var(--highlight);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 2px;
+}
+.report-map-range:hover { color: var(--black); }
+.report-copy {
+  color: #202020;
+  font-size: 13.5px;
+  font-weight: 300;
+  line-height: 1.73;
+}
+.report-copy p { text-wrap: pretty; }
+.report-copy p + p { margin-top: 1.3em; }
+.report-media {
+  margin-top: 30px;
+  padding-top: 13px;
+  border-top: 1px solid var(--black);
+}
+.report-media-summary {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 9.5px;
+  font-weight: 400;
+}
+.report-media-summary small {
+  overflow: hidden;
+  color: var(--g80);
+  font-size: 8px;
+  font-weight: 300;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-filmstrip {
+  display: flex;
+  gap: 11px;
+  margin: 0 -30px;
+  padding: 0 30px 4px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.report-filmstrip::-webkit-scrollbar { display: none; }
+.report-media-item {
+  position: relative;
+  display: block;
+  flex: 0 0 66px;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  scroll-snap-align: start;
+  text-align: center;
+}
+.report-media-item img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--black);
+  border-radius: 50%;
+  object-fit: cover;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.report-media-item:hover img { transform: scale(1.07); }
+.report-media-item:focus-visible { outline: none; }
+.report-media-item:focus-visible img {
+  box-shadow: 0 0 0 3px var(--highlight);
+}
+.report-media-caption {
+  display: block;
+  padding-top: 5px;
+}
+.report-media-caption b {
+  display: block;
+  font-size: 8px;
+  font-weight: 400;
+}
+.report-media-caption small { display: none; }
+.report-media-play {
+  position: absolute;
+  top: 32px;
+  left: 32px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--white);
+  border-radius: 50%;
+  background: var(--black);
+  color: var(--white);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1;
+}
 
 /* ---------- elevation profile ---------- */
 #profile {
@@ -1188,7 +1551,9 @@ body.media-photo-expanded #plate { z-index: 10; }
 @media (prefers-reduced-motion: reduce) {
   .media-card-image img,
   .profile-media-marker,
-  .mapboxgl-ctrl-bottom-right { transition: none; }
+  .mapboxgl-ctrl-bottom-right,
+  .report-chapter::before,
+  .report-media-item img { transition: none; }
 }
 
 #err {
@@ -1201,7 +1566,7 @@ body.media-photo-expanded #plate { z-index: 10; }
 
 @media (max-width: 1180px) {
   body { grid-template-columns: 1fr 340px; }
-  #masthead h1 { font-size: 44px; }
+  #activity-masthead h1 { font-size: 36px; }
 }
 /* ---------- stacked, scrolling layout for phones / small tablets ---------- */
 @media (max-width: 940px) {
@@ -1210,6 +1575,13 @@ body.media-photo-expanded #plate { z-index: 10; }
     grid-template-columns: 1fr;
     grid-template-rows: none;
     overflow: visible;
+  }
+  #plate,
+  #profile,
+  #rail {
+    width: 100%;
+    min-width: 0;
+    max-width: 100vw;
   }
 
   #plate {
@@ -1231,11 +1603,43 @@ body.media-photo-expanded #plate { z-index: 10; }
     border-left: none;
   }
   /* no nested scrollbox on mobile — the page itself scrolls */
+  #activity-index { flex: none; }
   #wplist { flex: none; overflow-y: visible; }
+  #rail-views button { padding: 0 8px; }
+  #race-report {
+    flex: none;
+    overflow: visible;
+  }
+  #report-scroll {
+    height: auto;
+    overflow: visible;
+  }
+  body.report-view #report-progress {
+    position: fixed;
+    right: 0;
+    left: 0;
+  }
+  #report-lede { padding: 26px 24px 24px; }
+  .report-introduction { max-width: 50ch; }
+  #report-nav { top: 0; }
+  .report-chapter {
+    padding: 35px 24px 42px;
+    scroll-margin-top: 37px;
+  }
+  .report-copy {
+    max-width: 58ch;
+    font-size: 14px;
+  }
+  .report-filmstrip {
+    margin-right: -24px;
+    margin-left: -24px;
+    padding-right: 24px;
+    padding-left: 24px;
+  }
 
-  #masthead { top: 22px; left: 20px; right: 20px; max-width: none; }
-  #masthead h1 { font-size: clamp(34px, 10vw, 44px); }
-  #masthead .route { margin-top: 12px; font-size: 14px; }
+  #activity-masthead { padding: 26px 20px 22px; }
+  #activity-masthead h1 { font-size: clamp(36px, 9vw, 44px); }
+  #activity-masthead .route { margin-top: 12px; font-size: 14px; }
 
   #mapctl { left: 20px; right: auto; bottom: 16px; gap: 5px; }
   #mapctl button { font-size: 12px; }
