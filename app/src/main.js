@@ -2170,10 +2170,19 @@ function scheduleReportScrollSync() {
   reportScrollFrame = requestAnimationFrame(syncReportScrollPosition)
 }
 
+function setVisualizationGuideOpen(open) {
+  const button = $('#visualization-info')
+  const guide = $('#visualization-guide')
+  if (!button || !guide) return
+  guide.hidden = !open
+  button.setAttribute('aria-expanded', String(open))
+}
+
 function setRailView(view) {
   if (!['activity', 'report'].includes(view)) return
   railView = view
   if (view === 'report') renderRaceReport()
+  if (view !== 'activity') setVisualizationGuideOpen(false)
 
   $('#activity-index').hidden = view !== 'activity'
   $('#race-report').hidden = view !== 'report'
@@ -2414,6 +2423,21 @@ $('#ctl-location').addEventListener('click', captureUserLocation)
 document.querySelectorAll('#rail-views button').forEach(button => {
   button.addEventListener('click', () => setRailView(button.dataset.railView))
 })
+$('#visualization-info').addEventListener('click', () => {
+  const open = $('#visualization-info').getAttribute('aria-expanded') !== 'true'
+  setVisualizationGuideOpen(open)
+})
+document.addEventListener('click', event => {
+  if (
+    $('#visualization-info').getAttribute('aria-expanded') === 'true' &&
+    !$('#activity-masthead').contains(event.target)
+  ) {
+    setVisualizationGuideOpen(false)
+  }
+})
+window.addEventListener('keydown', event => {
+  if (event.key === 'Escape') setVisualizationGuideOpen(false)
+})
 $('#ctl-media').addEventListener('click', () => setMediaVisibility(!mediaVisible))
 for (const mode of Object.keys(ATMOSPHERE_UI)) {
   $(ATMOSPHERE_UI[mode].button).addEventListener('click', () => {
@@ -2535,13 +2559,36 @@ $('#actual-wind').textContent =
 $('#actual-wind-direction').textContent = activitySummary.weather.windDirection
 
 // ---------------------------------------------------------------- waypoint list
-document.querySelectorAll('#filters button').forEach(b =>
+function focusActivityList() {
+  if (matchMedia('(max-width: 940px)').matches) return
+  requestAnimationFrame(() => {
+    const panel = $('#activity-index')
+    const filters = $('#filters')
+    if (!panel || !filters) return
+    const top = filter === 'all'
+      ? 0
+      : panel.scrollTop + filters.getBoundingClientRect().top -
+        panel.getBoundingClientRect().top
+    panel.scrollTo({
+      top,
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    })
+  })
+}
+
+document.querySelectorAll('#filters button').forEach(b => {
+  b.setAttribute('aria-pressed', 'false')
   b.addEventListener('click', () => {
     filter = filter === b.dataset.f ? 'all' : b.dataset.f
-    document.querySelectorAll('#filters button').forEach(x =>
-      x.classList.toggle('on', x.dataset.f === filter))
+    document.querySelectorAll('#filters button').forEach(x => {
+      const active = x.dataset.f === filter
+      x.classList.toggle('on', active)
+      x.setAttribute('aria-pressed', String(active))
+    })
     renderList()
-  }))
+    focusActivityList()
+  })
+})
 
 function visible(w) {
   if (filter === 'crew') return w.crew
