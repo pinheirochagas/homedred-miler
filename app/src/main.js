@@ -94,6 +94,23 @@ let atmosphereRequestId = 0
 let atmosphereFrontSlot = 0
 let atmosphereRenderedUrl = null
 
+const mobileLayout = matchMedia('(max-width: 940px)')
+const activityMasthead = $('#activity-masthead')
+const activityMastheadHome = document.createComment('activity masthead home')
+activityMasthead.before(activityMastheadHome)
+
+function syncActivityMastheadPosition() {
+  if (mobileLayout.matches) {
+    document.body.insertBefore(activityMasthead, $('#plate'))
+  } else {
+    activityMastheadHome.after(activityMasthead)
+  }
+  activityMasthead.hidden = railView !== 'activity'
+}
+
+syncActivityMastheadPosition()
+mobileLayout.addEventListener('change', syncActivityMastheadPosition)
+
 const plannedToActivityMi = mi => mi / course.totalMi * activityTotalMi
 const waypoints = matchActivityCheckpoints(plannedWaypoints.map(waypoint => {
   const point = ptAt(waypoint.mi)
@@ -2221,6 +2238,7 @@ function setRailView(view) {
   if (view !== 'activity') setVisualizationGuideOpen(false)
   if (view !== 'report') closeReportInlineMedia()
 
+  activityMasthead.hidden = view !== 'activity'
   $('#activity-index').hidden = view !== 'activity'
   $('#race-report').hidden = view !== 'report'
   document.body.classList.toggle('report-view', view === 'report')
@@ -2591,12 +2609,8 @@ $('#actual-calories').textContent = activitySummary.calories.toLocaleString('en-
 $('#actual-condition').textContent = activitySummary.weather.condition
 $('#actual-temperature').textContent =
   `${Math.round(activitySummary.weather.temperatureC * 9 / 5 + 32)} °F`
-$('#actual-humidity').textContent = `${activitySummary.weather.humidityPercent}%`
-$('#actual-feels').textContent =
-  `${Math.round(activitySummary.weather.feelsLikeC * 9 / 5 + 32)} °F`
 $('#actual-wind').textContent =
   `${(activitySummary.weather.windSpeedKph / 1.609344).toFixed(1)} mph`
-$('#actual-wind-direction').textContent = activitySummary.weather.windDirection
 
 // ---------------------------------------------------------------- waypoint list
 function focusActivityList() {

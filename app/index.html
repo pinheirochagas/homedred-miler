@@ -75,7 +75,17 @@
     <div id="activity-index">
       <header id="activity-masthead">
         <div class="activity-masthead-copy">
-          <h1>Homedred Miler</h1>
+          <div class="activity-masthead-title">
+            <h1>Homedred Miler</h1>
+            <button
+              id="visualization-info"
+              type="button"
+              aria-label="How to use the map and elevation profile"
+              aria-controls="visualization-guide"
+              aria-expanded="false"
+            >i</button>
+          </div>
+          <p class="tagline">A 100 miles trail running adventure</p>
           <p class="route">Home
             <svg class="loop" viewBox="0 0 24 24" width="13" height="13" aria-label="out and back">
               <path d="M23 4v6h-6M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
@@ -84,13 +94,6 @@
             </svg>
             Headlands</p>
         </div>
-        <button
-          id="visualization-info"
-          type="button"
-          aria-label="How to use the map and elevation profile"
-          aria-controls="visualization-guide"
-          aria-expanded="false"
-        >i</button>
         <div id="visualization-guide" class="visualization-guide" role="dialog" aria-label="Visualization instructions" hidden>
           <p><b>Map</b>Select a media marker or route stop for details. Use the left controls for framing, relief, and weather.</p>
           <p><b>Elevation</b>Hover for mile, time, and elevation. Drag to highlight the same section on the map; select a metric to compare it.</p>
@@ -130,20 +133,13 @@
           <span><b id="actual-calories"></b><small>calories</small></span>
           <span><b id="actual-condition"></b><small>conditions</small></span>
           <span><b id="actual-temperature"></b><small>temperature</small></span>
-          <span><b id="actual-humidity"></b><small>humidity</small></span>
-          <span><b id="actual-feels"></b><small>feels like</small></span>
           <span><b id="actual-wind"></b><small>wind speed</small></span>
-          <span><b id="actual-wind-direction"></b><small>wind direction</small></span>
         </div>
       </section>
 
       <div id="filters">
         <button data-f="crew">crew record</button>
-        <button data-f="water">water</button>
-        <button data-f="bathrooms">bathrooms</button>
-        <button data-f="parking">parking</button>
-        <button data-f="gated">access</button>
-        <button data-f="segments">splits</button>
+        <button data-f="segments">segments</button>
       </div>
 
       <div id="segment-summary" hidden aria-live="polite"></div>
