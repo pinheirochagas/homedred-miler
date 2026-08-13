@@ -82,6 +82,7 @@ let reportRendered = false
 let reportScrollFrame = null
 let reportScrollTargetId = null
 let reportScrollTargetTimer = null
+let reportInlineMedia = null
 let atmosphereMode = null
 const atmosphereArchives = new Map()
 let atmosphereFrames = []
@@ -1788,6 +1789,37 @@ function mediaPopupContent(item, overlappingIds = []) {
   return card
 }
 
+function closeReportInlineMedia() {
+  if (!reportInlineMedia) return
+  reportInlineMedia.querySelectorAll('audio, video').forEach(media => media.pause())
+  reportInlineMedia.remove()
+  reportInlineMedia = null
+}
+
+function showReportInlineMedia(item, container) {
+  closeReportInlineMedia()
+  mediaPopup?.remove()
+
+  const viewer = document.createElement('div')
+  viewer.className = 'report-inline-media'
+  viewer.setAttribute('role', 'region')
+  viewer.setAttribute('aria-label', `${item.type} at actual mile ${fmtMi(item.mi)}`)
+
+  const close = document.createElement('button')
+  close.type = 'button'
+  close.className = 'report-inline-media-close'
+  close.setAttribute('aria-label', 'Close media')
+  close.textContent = '×'
+  close.addEventListener('click', closeReportInlineMedia)
+
+  const card = mediaPopupContent(item)
+  card.classList.add('report-inline-media-card')
+  viewer.append(close, card)
+  container.appendChild(viewer)
+  reportInlineMedia = viewer
+  viewer.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+}
+
 function focusMedia(id, fly = false, overlappingIds = []) {
   const item = mediaById.get(id)
   if (!item || !map) return
@@ -1942,6 +1974,10 @@ function renderReportMedia(chapter) {
     }
     button.append(caption)
     button.addEventListener('click', () => {
+      if (matchMedia('(max-width: 940px)').matches) {
+        showReportInlineMedia(item, media)
+        return
+      }
       if (!mediaVisible) setMediaVisibility(true)
       focusMedia(item.id, true)
     })
@@ -2183,6 +2219,7 @@ function setRailView(view) {
   railView = view
   if (view === 'report') renderRaceReport()
   if (view !== 'activity') setVisualizationGuideOpen(false)
+  if (view !== 'report') closeReportInlineMedia()
 
   $('#activity-index').hidden = view !== 'activity'
   $('#race-report').hidden = view !== 'report'
@@ -2436,7 +2473,10 @@ document.addEventListener('click', event => {
   }
 })
 window.addEventListener('keydown', event => {
-  if (event.key === 'Escape') setVisualizationGuideOpen(false)
+  if (event.key === 'Escape') {
+    setVisualizationGuideOpen(false)
+    closeReportInlineMedia()
+  }
 })
 $('#ctl-media').addEventListener('click', () => setMediaVisibility(!mediaVisible))
 for (const mode of Object.keys(ATMOSPHERE_UI)) {

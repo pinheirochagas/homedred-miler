@@ -1166,6 +1166,49 @@ body.atmosphere-on .mapboxgl-ctrl-bottom-right { bottom: 68px; }
   font-weight: 500;
   line-height: 1;
 }
+.report-inline-media {
+  position: relative;
+  width: 100%;
+  margin-top: 13px;
+  overflow: hidden;
+  border: 1px solid var(--black);
+  background: var(--white);
+}
+.report-inline-media-card {
+  width: 100% !important;
+}
+.report-inline-media-card .media-card-image {
+  max-height: 70svh;
+}
+.report-inline-media-card .media-card-copy {
+  padding-right: 44px;
+}
+.report-inline-media-card .media-card-resize {
+  display: none;
+}
+.report-inline-media-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--black);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--black);
+  font-size: 20px;
+  font-weight: 200;
+  line-height: 1;
+}
+.report-inline-media-close:hover,
+.report-inline-media-close:focus-visible {
+  outline: none;
+  background: var(--black);
+  color: var(--white);
+}
 
 /* ---------- elevation profile ---------- */
 #profile {
