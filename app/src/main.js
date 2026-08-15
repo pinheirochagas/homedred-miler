@@ -47,6 +47,11 @@ import {
   raceReportMeta,
 } from './race-report.js?v=20260812'
 import { crewPlan } from './crew-plan.js?v=20260810-actual-record-6'
+import {
+  crewMembers,
+  crewMemberById,
+  crewMemberIdByProfileName,
+} from './crew-profiles.js'
 import { sunTimes, hhmm } from './sun.js'
 import waterFacilityIcon from './assets/facilities/facility-water.png'
 import bathroomFacilityIcon from './assets/facilities/facility-bathroom.png'
@@ -83,6 +88,9 @@ let reportScrollFrame = null
 let reportScrollTargetId = null
 let reportScrollTargetTimer = null
 let reportInlineMedia = null
+let crewViewRendered = false
+let activeCrewMemberId = crewMembers[0]?.id || null
+let crewInlineMedia = null
 let atmosphereMode = null
 const atmosphereArchives = new Map()
 let atmosphereFrames = []
@@ -2127,6 +2135,286 @@ function renderRaceReport() {
   window.addEventListener('resize', scheduleReportScrollSync)
 }
 
+function closeCrewInlineMedia() {
+  if (!crewInlineMedia) return
+  crewInlineMedia.querySelectorAll('video').forEach(video => video.pause())
+  crewInlineMedia.remove()
+  crewInlineMedia = null
+}
+
+function showCrewInlineMedia(item, container) {
+  closeCrewInlineMedia()
+
+  const viewer = reportElement('div', 'crew-inline-media')
+  viewer.setAttribute('role', 'region')
+  viewer.setAttribute('aria-label', 'Expanded gallery photo')
+
+  const close = reportElement('button', 'report-inline-media-close', '×')
+  close.type = 'button'
+  close.setAttribute('aria-label', 'Close photo')
+  close.addEventListener('click', closeCrewInlineMedia)
+
+  const figure = reportElement('figure', 'crew-inline-figure')
+  let media
+  if (item.type === 'video') {
+    media = document.createElement('video')
+    media.src = item.src
+    media.poster = item.posterSrc || ''
+    media.controls = true
+    media.playsInline = true
+    media.preload = 'metadata'
+    media.setAttribute('aria-label', item.alt)
+  } else {
+    media = document.createElement('img')
+    media.src = item.src
+    media.alt = item.alt
+    media.decoding = 'async'
+  }
+
+  figure.appendChild(media)
+  viewer.append(close, figure)
+  container.appendChild(viewer)
+  crewInlineMedia = viewer
+
+  requestAnimationFrame(() => {
+    viewer.scrollIntoView({
+      block: 'nearest',
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    })
+  })
+}
+
+function renderCrewGallery(member) {
+  const section = reportElement('section', 'crew-gallery')
+  const header = reportElement('header', 'crew-section-head')
+  header.appendChild(reportElement('h3', 'crew-gallery-title', 'Together, over the years'))
+
+  const carousel = reportElement('div', 'crew-carousel')
+  const track = reportElement('div', 'crew-carousel-track')
+  track.setAttribute('role', 'group')
+  track.setAttribute('aria-label', 'Mathilde photo carousel')
+
+  const slides = member.gallery.map((item, itemIndex) => {
+    const button = reportElement('button', 'crew-carousel-slide')
+    button.type = 'button'
+    button.setAttribute(
+      'aria-label',
+      `Open gallery ${item.type} ${itemIndex + 1} of ${member.gallery.length}`,
+    )
+
+    const image = document.createElement('img')
+    image.src = item.posterSrc || item.src
+    image.alt = ''
+    image.loading = 'lazy'
+    image.decoding = 'async'
+
+    button.appendChild(image)
+    if (item.type === 'video') {
+      const play = reportElement('i', 'crew-carousel-play', '▶')
+      play.setAttribute('aria-hidden', 'true')
+      button.appendChild(play)
+    }
+    button.addEventListener('click', () => showCrewInlineMedia(item, section))
+    track.appendChild(button)
+    return button
+  })
+
+  let activeIndex = 0
+  let scrollFrame = null
+  const previous = reportElement('button', 'crew-carousel-arrow crew-carousel-previous', '←')
+  previous.type = 'button'
+  previous.setAttribute('aria-label', 'Previous gallery photo')
+  const next = reportElement('button', 'crew-carousel-arrow crew-carousel-next', '→')
+  next.type = 'button'
+  next.setAttribute('aria-label', 'Next gallery photo')
+
+  const updateArrows = () => {
+    previous.disabled = activeIndex === 0
+    next.disabled = activeIndex === slides.length - 1
+  }
+  const scrollToSlide = index => {
+    activeIndex = Math.max(0, Math.min(slides.length - 1, index))
+    track.scrollTo({
+      left: slides[activeIndex].offsetLeft,
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    })
+    updateArrows()
+  }
+  const syncCarouselIndex = () => {
+    scrollFrame = null
+    activeIndex = slides.reduce((closest, slide, index) =>
+      Math.abs(slide.offsetLeft - track.scrollLeft) <
+      Math.abs(slides[closest].offsetLeft - track.scrollLeft)
+        ? index
+        : closest, 0)
+    updateArrows()
+  }
+
+  previous.addEventListener('click', () => scrollToSlide(activeIndex - 1))
+  next.addEventListener('click', () => scrollToSlide(activeIndex + 1))
+  track.addEventListener('scroll', () => {
+    if (scrollFrame != null) cancelAnimationFrame(scrollFrame)
+    scrollFrame = requestAnimationFrame(syncCarouselIndex)
+  }, { passive: true })
+
+  updateArrows()
+  carousel.append(track, previous, next)
+  section.append(header, carousel)
+  return section
+}
+
+function renderCrewInterview(member) {
+  const interview = reportElement('section', 'crew-interview')
+  const introduction = reportElement('header', 'crew-section-head crew-interview-lede')
+  introduction.append(
+    reportElement('span', 'report-eyebrow', 'A conversation with Mathilde'),
+    reportElement('h3', '', 'What the miles change'),
+    reportElement(
+      'p',
+      '',
+      'On altered states of consciousness, fear and love, finding rhythm, and racing for something bigger.',
+    ),
+  )
+  interview.appendChild(introduction)
+
+  member.interview.forEach(chapter => {
+    const section = reportElement('section', 'crew-interview-section')
+    const heading = reportElement('header', 'crew-interview-heading')
+    const title = reportElement('h4', '', chapter.title)
+    heading.appendChild(title)
+
+    const copy = reportElement('div', 'crew-interview-copy')
+    chapter.exchanges.forEach(exchange => {
+      if (exchange.question) {
+        copy.appendChild(reportElement('p', 'crew-interview-question', exchange.question))
+      }
+      copy.appendChild(reportElement('p', 'crew-interview-answer', exchange.answer))
+    })
+    section.append(heading, copy)
+    interview.appendChild(section)
+  })
+
+  return interview
+}
+
+function activateCrewMember(id, { scroll = false } = {}) {
+  const member = crewMemberById.get(id)
+  if (!member) return
+  activeCrewMemberId = member.id
+  closeCrewInlineMedia()
+
+  document.querySelectorAll('[data-crew-member]').forEach(element => {
+    const on = element.dataset.crewMember === member.id
+    if (element.classList.contains('crew-member-tab')) {
+      element.classList.toggle('on', on)
+      element.setAttribute('aria-pressed', String(on))
+    } else {
+      element.hidden = !on
+    }
+  })
+
+  if (scroll) {
+    requestAnimationFrame(() => {
+      const scroller = $('#crew-view-scroll')
+      const profile = $(`#crew-profile-${member.id}`)
+      if (!scroller || !profile) return
+      if (matchMedia('(max-width: 940px)').matches) {
+        profile.scrollIntoView({
+          block: 'start',
+          behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        })
+      } else {
+        scroller.scrollTo({
+          top: profile.offsetTop,
+          behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        })
+      }
+    })
+  }
+}
+
+function renderCrewView() {
+  if (crewViewRendered) return
+  crewViewRendered = true
+
+  const scroller = $('#crew-view-scroll')
+  const directory = reportElement('header', 'crew-directory')
+  directory.append(
+    reportElement('h2', '', 'Crew'),
+    reportElement(
+      'p',
+      'crew-directory-intro',
+      'Profiles, conversations, and the years of friendship behind a single day on the trails.',
+    ),
+  )
+
+  const memberTabs = reportElement('nav', 'crew-member-tabs')
+  memberTabs.setAttribute('aria-label', 'Crew members')
+  crewMembers.forEach((member, index) => {
+    const button = reportElement('button', 'crew-member-tab')
+    button.type = 'button'
+    button.dataset.crewMember = member.id
+    button.setAttribute('aria-pressed', 'false')
+
+    const image = document.createElement('img')
+    image.src = member.portraitSrc
+    image.alt = ''
+    const copy = reportElement('span', 'crew-member-tab-copy')
+    copy.append(
+      reportElement('small', '', String(index + 1).padStart(2, '0')),
+      reportElement('b', '', member.name),
+      reportElement('span', '', member.role),
+    )
+    const arrow = reportElement('i', '', '→')
+    arrow.setAttribute('aria-hidden', 'true')
+    button.append(image, copy, arrow)
+    button.addEventListener('click', () => activateCrewMember(member.id, { scroll: true }))
+    memberTabs.appendChild(button)
+  })
+  directory.appendChild(memberTabs)
+  scroller.appendChild(directory)
+
+  crewMembers.forEach(member => {
+    const profile = reportElement('article', 'crew-profile')
+    profile.id = `crew-profile-${member.id}`
+    profile.dataset.crewMember = member.id
+
+    const hero = reportElement('header', 'crew-profile-hero')
+    const portrait = reportElement('figure', 'crew-profile-portrait')
+    const image = document.createElement('img')
+    image.src = member.portraitSrc
+    image.alt = member.portraitAlt
+    image.decoding = 'async'
+    portrait.appendChild(image)
+
+    const identity = reportElement('div', 'crew-profile-identity')
+    identity.append(
+      reportElement('span', 'report-eyebrow', 'Pacer profile'),
+      reportElement('h2', '', member.name),
+      reportElement('p', 'crew-profile-role', member.role),
+      reportElement('p', 'crew-profile-route', member.route),
+    )
+
+    hero.append(portrait, identity)
+
+    profile.append(
+      hero,
+      renderCrewGallery(member),
+      renderCrewInterview(member),
+    )
+    scroller.appendChild(profile)
+  })
+
+  activateCrewMember(activeCrewMemberId)
+}
+
+function openCrewMemberProfile(id) {
+  if (!crewMemberById.has(id)) return
+  activeCrewMemberId = id
+  setRailView('crew')
+  activateCrewMember(id, { scroll: true })
+}
+
 function fitReportChapter(chapter) {
   const range = reportRouteRange(chapter)
   if (!range || !map) return
@@ -2232,15 +2520,18 @@ function setVisualizationGuideOpen(open) {
 }
 
 function setRailView(view) {
-  if (!['activity', 'report'].includes(view)) return
+  if (!['activity', 'report', 'crew'].includes(view)) return
   railView = view
   if (view === 'report') renderRaceReport()
+  if (view === 'crew') renderCrewView()
   if (view !== 'activity') setVisualizationGuideOpen(false)
   if (view !== 'report') closeReportInlineMedia()
+  if (view !== 'crew') closeCrewInlineMedia()
 
   activityMasthead.hidden = view !== 'activity'
   $('#activity-index').hidden = view !== 'activity'
   $('#race-report').hidden = view !== 'report'
+  $('#crew-view').hidden = view !== 'crew'
   document.body.classList.toggle('report-view', view === 'report')
   document.querySelectorAll('#rail-views button').forEach(button => {
     const on = button.dataset.railView === view
@@ -2494,6 +2785,7 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
     setVisualizationGuideOpen(false)
     closeReportInlineMedia()
+    closeCrewInlineMedia()
   }
 })
 $('#ctl-media').addEventListener('click', () => setMediaVisibility(!mediaVisible))
@@ -2744,10 +3036,24 @@ function appendPacerSeparator(element, value, state = false) {
 }
 
 function appendPacerGroup(element, value) {
-  const pacer = document.createElement('span')
-  pacer.className = 'crew-pacer-chip'
-  pacer.textContent = value
-  element.appendChild(pacer)
+  value.split(/\s+\+\s+/).forEach((name, index) => {
+    if (index) appendPacerSeparator(element, '+')
+    const memberId = crewMemberIdByProfileName.get(name.toLowerCase())
+    const pacer = document.createElement(memberId ? 'button' : 'span')
+    pacer.className = 'crew-pacer-chip'
+    pacer.textContent = name
+
+    if (memberId) {
+      pacer.type = 'button'
+      pacer.classList.add('crew-profile-chip')
+      pacer.setAttribute('aria-label', `Open ${name}'s crew profile`)
+      pacer.addEventListener('click', event => {
+        event.stopPropagation()
+        openCrewMemberProfile(memberId)
+      })
+    }
+    element.appendChild(pacer)
+  })
 }
 
 function crewPacingLine(stop) {
@@ -2833,6 +3139,7 @@ function renderCrewPlan(ol) {
 
     const button = document.createElement('button')
     button.type = 'button'
+    button.className = 'crew-plan-stop-summary'
     button.setAttribute(
       'aria-label',
       `${stop.name}, actual mile ${fmtMi(waypoint.mi)}, arrived ${hhmm(arrived)}`,
@@ -2863,7 +3170,7 @@ function renderCrewPlan(ol) {
       crewPlanLine('notes', stop.notes, 'notes'),
     ].filter(Boolean)
     details.append(...lines)
-    main.append(heading, details)
+    main.appendChild(heading)
 
     const time = document.createElement('span')
     time.className = 'crew-plan-time'
@@ -2875,7 +3182,7 @@ function renderCrewPlan(ol) {
 
     button.append(number, main, time)
     button.addEventListener('click', () => focusWaypoint(waypoint.id))
-    li.appendChild(button)
+    li.append(button, details)
     ol.appendChild(li)
   }
 }
