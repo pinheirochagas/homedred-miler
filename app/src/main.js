@@ -177,18 +177,23 @@ function loadFacilityIconImages() {
   return facilityIconImagesPromise
 }
 
-let mediaImagesPromise = null
-function loadMediaImages() {
-  if (mediaImagesPromise) return mediaImagesPromise
-  mediaImagesPromise = Promise.all(
-    routeMedia.map(item => new Promise((resolve, reject) => {
-      const image = new Image()
-      image.onload = () => resolve([item.id, image])
-      image.onerror = () => reject(new Error(`Could not load media image ${item.id}`))
-      image.src = item.thumbnailSrc || item.src
-    })),
-  ).then(Object.fromEntries)
-  return mediaImagesPromise
+const MEDIA_IMAGE_CONCURRENCY = 6
+const mediaBadgePromises = new Map()
+function loadMediaBadge(item) {
+  if (mediaBadgePromises.has(item.id)) return mediaBadgePromises.get(item.id)
+  const promise = new Promise((resolve, reject) => {
+    const image = new Image()
+    image.decoding = 'async'
+    image.fetchPriority = 'low'
+    image.onload = () => resolve(mediaBadge(image, item.type))
+    image.onerror = () => reject(new Error(`Could not load media image ${item.id}`))
+    image.src = item.thumbnailSrc || item.src
+  }).catch(error => {
+    mediaBadgePromises.delete(item.id)
+    throw error
+  })
+  mediaBadgePromises.set(item.id, promise)
+  return promise
 }
 
 let locationRunnerImagePromise = null
@@ -1385,13 +1390,35 @@ function mediaBadge(image, type) {
   return ctx.getImageData(0, 0, width, height)
 }
 
-async function addMediaLayers() {
-  const images = await loadMediaImages()
-  for (const item of routeMedia) {
-    const key = mediaImageKey(item.id)
-    if (!map.hasImage(key)) map.addImage(key, mediaBadge(images[item.id], item.type), { pixelRatio: 2 })
-  }
+let mediaLayerEventsBound = false
+let mediaImageRegistrationRun = 0
 
+async function registerMediaImages(run) {
+  let nextIndex = 0
+  const worker = async () => {
+    while (run === mediaImageRegistrationRun) {
+      const item = routeMedia[nextIndex]
+      nextIndex += 1
+      if (!item) return
+      try {
+        const badge = await loadMediaBadge(item)
+        if (run !== mediaImageRegistrationRun || !map.getLayer('media-icons')) return
+        const key = mediaImageKey(item.id)
+        if (!map.hasImage(key)) map.addImage(key, badge, { pixelRatio: 2 })
+      } catch (error) {
+        console.warn(error)
+      }
+    }
+  }
+  await Promise.all(
+    Array.from(
+      { length: Math.min(MEDIA_IMAGE_CONCURRENCY, routeMedia.length) },
+      worker,
+    ),
+  )
+}
+
+function addMediaLayers() {
   map.addSource('media-connectors', { type: 'geojson', data: mediaConnectorGeojson() })
   map.addLayer({
     id: 'media-connectors-case',
@@ -1430,20 +1457,26 @@ async function addMediaLayers() {
     paint: { 'icon-emissive-strength': 1 },
   })
 
-  map.on('click', 'media-icons', e => {
-    const id = e.features?.[0]?.properties?.id
-    if (!id) return
-    const overlappingIds = [...new Set([
-      id,
-      ...map.queryRenderedFeatures(e.point, { layers: ['media-icons'] })
-        .map(feature => feature.properties?.id)
-        .filter(candidateId => candidateId && candidateId !== id),
-    ])].sort((a, b) =>
-      new Date(mediaById.get(a)?.capturedAt) - new Date(mediaById.get(b)?.capturedAt))
-    focusMedia(id, true, overlappingIds)
-  })
-  map.on('mouseenter', 'media-icons', () => (map.getCanvas().style.cursor = 'pointer'))
-  map.on('mouseleave', 'media-icons', () => (map.getCanvas().style.cursor = ''))
+  if (!mediaLayerEventsBound) {
+    mediaLayerEventsBound = true
+    map.on('click', 'media-icons', e => {
+      const id = e.features?.[0]?.properties?.id
+      if (!id) return
+      const overlappingIds = [...new Set([
+        id,
+        ...map.queryRenderedFeatures(e.point, { layers: ['media-icons'] })
+          .map(feature => feature.properties?.id)
+          .filter(candidateId => candidateId && candidateId !== id),
+      ])].sort((a, b) =>
+        new Date(mediaById.get(a)?.capturedAt) - new Date(mediaById.get(b)?.capturedAt))
+      focusMedia(id, true, overlappingIds)
+    })
+    map.on('mouseenter', 'media-icons', () => (map.getCanvas().style.cursor = 'pointer'))
+    map.on('mouseleave', 'media-icons', () => (map.getCanvas().style.cursor = ''))
+  }
+
+  mediaImageRegistrationRun += 1
+  registerMediaImages(mediaImageRegistrationRun).catch(error => console.error(error))
 }
 
 function updateMediaSources() {
