@@ -1757,7 +1757,7 @@ function mediaPopupContent(item, overlappingIds = []) {
   const meta = document.createElement('div')
   meta.className = 'media-card-meta'
   meta.textContent = [
-    `actual mile ${fmtMi(item.mi)}`,
+    `Mile ${fmtMi(item.mi)}`,
     item.capturedAt ? mediaTimestamp(item.capturedAt) : null,
     Number.isFinite(item.activityElapsedS)
       ? `${activityDuration(item.activityElapsedS)} elapsed`
@@ -1861,7 +1861,7 @@ function showReportInlineMedia(item, container) {
   const viewer = document.createElement('div')
   viewer.className = 'report-inline-media'
   viewer.setAttribute('role', 'region')
-  viewer.setAttribute('aria-label', `${item.type} at actual mile ${fmtMi(item.mi)}`)
+  viewer.setAttribute('aria-label', `${item.type} at Mile ${fmtMi(item.mi)}`)
 
   const close = document.createElement('button')
   close.type = 'button'
@@ -2010,7 +2010,7 @@ function renderReportMedia(chapter) {
     button.type = 'button'
     button.setAttribute(
       'aria-label',
-      `Open ${item.type} at actual mile ${fmtMi(item.mi)}${item.creator ? ` by ${item.creator}` : ''}`,
+      `Open ${item.type} at Mile ${fmtMi(item.mi)}${item.creator ? ` by ${item.creator}` : ''}`,
     )
 
     const image = document.createElement('img')
@@ -2021,7 +2021,7 @@ function renderReportMedia(chapter) {
 
     const caption = reportElement('span', 'report-media-caption')
     caption.append(
-      reportElement('b', '', `mi ${fmtMi(item.mi)}`),
+      reportElement('b', '', `Mile ${fmtMi(item.mi)}`),
       reportElement('small', '', item.creator || item.type),
     )
     button.append(image)
