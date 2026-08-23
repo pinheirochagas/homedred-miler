@@ -34,7 +34,7 @@ export const raceReportChapters = [
   {
     id: 'before-change',
     phase: 'D−2',
-    title: 'Before everything changes',
+    title: 'Before she arrives',
     context: 'Parenthood on the horizon',
     paragraphs: copy(pre, 5, 8),
   },
@@ -114,7 +114,7 @@ export const raceReportChapters = [
   {
     id: 'hard-hours',
     phase: 'The run',
-    title: 'The hard hours',
+    title: 'The webs ahead and within',
     context: 'Sky Oaks to East Peak',
     fromMi: 66.1,
     toMi: 77.9,
@@ -150,7 +150,7 @@ export const raceReportChapters = [
   {
     id: 'after',
     phase: 'D+1',
-    title: 'After',
+    title: 'Now we party',
     context: 'The shower, the party, and the body returning',
     mediaFromMi: 98.5,
     mediaToMi: 102.43,
